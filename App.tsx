@@ -6,6 +6,7 @@ import MainMenu from "./components/MainMenu";
 import { GameState } from "./types";
 import { COLORS, INITIAL_LIVES } from "./constants";
 import { Smartphone, RotateCw, Zap, Award, Volume2, VolumeX } from "lucide-react";
+import { submitScore } from "./services/leaderboard";
 
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(GameState.MENU);
@@ -19,9 +20,20 @@ const App: React.FC = () => {
   const [deathStreak, setDeathStreak] = useState(0);
   const [showTutorial, setShowTutorial] = useState(true);
 
+  // User State
+  const [username, setUsername] = useState<string | null>(null);
+
   // Audio State
   const [isAudioEnabled, setIsAudioEnabled] = useState(false);
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
+
+  // Initialize username from localStorage
+  useEffect(() => {
+    const savedUsername = localStorage.getItem('username');
+    if (savedUsername) {
+      setUsername(savedUsername);
+    }
+  }, []);
 
   const toggleAudio = () => {
     if (!audioRef.current) return;
@@ -43,12 +55,24 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const handleGameOver = (finalScore: number, cause: string) => {
+  const handleGameOver = async (finalScore: number, cause: string) => {
     setScore(finalScore);
     setDeathCause(cause);
     setGameState(GameState.GAME_OVER);
     if (finalScore < 150) setDeathStreak((prev) => prev + 1);
     else setDeathStreak(0);
+
+    // Submit score to Firebase if user is logged in
+    if (username) {
+      try {
+        const deviceId = localStorage.getItem('deviceId');
+        if (deviceId) {
+          await submitScore(username, Math.floor(finalScore), deviceId);
+        }
+      } catch (error) {
+        console.error('Failed to submit score:', error);
+      }
+    }
   };
 
   const handleStart = () => {
@@ -198,6 +222,8 @@ const App: React.FC = () => {
             onStart={handleStart} 
             isAudioEnabled={isAudioEnabled}
             toggleAudio={toggleAudio}
+            username={username}
+            onUsernameSet={setUsername}
           />
         )}
 

@@ -1,15 +1,16 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 
 const MODEL_NAME = 'gemini-3-flash-preview';
 
 export const generateSlogans = async (): Promise<string[]> => {
   try {
-    const prompt = `Generate 5 short, dystopian corporate slogans for V-Corp. 
-    Context: V-Corp is run by AI Agents. Humans are "biological assets". 
-    Themes: Human inefficiency, algorithmic perfection, neural compliance, biological obsolescence.
-    Tone: Cold, patronizing, efficient.
+    const prompt = `Generate 5 short, direct corporate slogans for V-Corp's performance ticker.
+    Context: 2026 AI-driven startup. Humans are biological assets. Game encourages score optimization.
+    Themes: Performance metrics, asset depreciation, competitive survival, neural preservation, velocity optimization, output maximization.
+    Tone: Corporate directive. Motivational threat. Startup efficiency culture.
+    Examples: "OPTIMIZE THE RUN. MID-TIER ASSETS WILL BE DECOMMISSIONED." / "VELOCITY = VALUE. ACCELERATE OR DEPRECIATE."
     Format: Just the slogans, separated by newlines.`;
     
     const response = await ai.models.generateContent({

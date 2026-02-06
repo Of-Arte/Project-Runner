@@ -1,20 +1,23 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>V-Corp Runner</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+    <link
+      href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
     <style>
       body {
-        font-family: 'Rajdhani', sans-serif;
+        font-family: "Rajdhani", sans-serif;
         background-color: #050505;
         color: #e0e0e0;
         overflow: hidden;
       }
       .mono {
-        font-family: 'Share Tech Mono', monospace;
+        font-family: "Share Tech Mono", monospace;
       }
       .scanline {
         position: fixed;
@@ -37,26 +40,104 @@
         animation: flicker 0.15s infinite;
       }
       @keyframes flicker {
-        0% { opacity: 0.97; }
-        50% { opacity: 1; }
-        100% { opacity: 0.98; }
+        0% {
+          opacity: 0.97;
+        }
+        50% {
+          opacity: 1;
+        }
+        100% {
+          opacity: 0.98;
+        }
+      }
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(30px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      @keyframes holographicShimmer {
+        0% {
+          background-position: 0% 50%;
+        }
+        50% {
+          background-position: 100% 50%;
+        }
+        100% {
+          background-position: 0% 50%;
+        }
+      }
+      @keyframes glitchText {
+        0%,
+        90%,
+        100% {
+          transform: translate(0);
+          filter: blur(0);
+        }
+        92% {
+          transform: translate(-2px, 1px);
+          filter: blur(0.5px);
+        }
+        94% {
+          transform: translate(2px, -1px);
+          filter: blur(0);
+        }
+        96% {
+          transform: translate(-1px, 2px);
+        }
+      }
+      @keyframes pulseGlow {
+        0%,
+        100% {
+          box-shadow: 0 0 10px rgba(34, 211, 238, 0.3);
+        }
+        50% {
+          box-shadow:
+            0 0 20px rgba(34, 211, 238, 0.6),
+            0 0 30px rgba(34, 211, 238, 0.3);
+        }
+      }
+      @keyframes borderPulse {
+        0%,
+        100% {
+          border-color: rgba(55, 65, 81, 1);
+        }
+        50% {
+          border-color: rgba(34, 211, 238, 0.5);
+        }
+      }
+      @keyframes float {
+        0%,
+        100% {
+          transform: translateY(0) translateX(0);
+        }
+        33% {
+          transform: translateY(-10px) translateX(5px);
+        }
+        66% {
+          transform: translateY(5px) translateX(-5px);
+        }
       }
     </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react/": "https://esm.sh/react@^19.2.4/",
-    "react": "https://esm.sh/react@^19.2.4",
-    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-    "@google/genai": "https://esm.sh/@google/genai@^1.40.0"
-  }
-}
-</script>
-<link rel="stylesheet" href="/index.css">
-</head>
+    <script type="importmap">
+      {
+        "imports": {
+          "react/": "https://esm.sh/react@^19.2.4/",
+          "react": "https://esm.sh/react@^19.2.4",
+          "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
+          "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+          "@google/genai": "https://esm.sh/@google/genai@^1.40.0"
+        }
+      }
+    </script>
+    <link rel="stylesheet" href="/index.css" />
+  </head>
   <body>
     <div id="root"></div>
-  <script type="module" src="/index.tsx"></script>
-</body>
+    <script type="module" src="/index.tsx"></script>
+  </body>
 </html>

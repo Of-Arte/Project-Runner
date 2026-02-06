@@ -22,11 +22,11 @@ export const SPEED_INCREMENT = 0.01;
 
 // V-Corp Theme Colors
 export const COLORS = {
-  NEON_YELLOW: '#FCEE0A',
-  NEON_RED: '#FF2A2A',
+  NEON_YELLOW: '#facc15',
+  NEON_RED: '#f87171',
   NEON_BLUE: '#00F0FF',
-  NEON_CYAN: '#00F0FF', // Alias for NEON_BLUE
-  NEON_GREEN: '#0AFF0A',
+  NEON_CYAN: '#22d3ee', // Alias for NEON_BLUE
+  NEON_GREEN: '#4ade80',
   NEON_PURPLE: '#BD0AFF',
   SYNERGY_WHITE: '#FFFFFF',
   DARK_BG: '#050505',
@@ -40,4 +40,13 @@ export const DEPARTMENTS = [
   { threshold: 800, name: "PROCESSING", primary: COLORS.NEON_GREEN, bg: '#000500' },
   { threshold: 2000, name: "EXECUTIVE OVERSIGHT", primary: COLORS.NEON_RED, bg: '#1a0505' },
   { threshold: 4000, name: "THE VOID", primary: COLORS.NEON_PURPLE, bg: '#080008' }
+];
+
+export const MOCK_LEADERBOARD = [
+  { username: 'NEO_CEO', score: 999999 },
+  { username: 'CORP_SLAYER', score: 50000 },
+  { username: 'WAGE_CAGE', score: 25000 },
+  { username: 'LADDER_CLIMBER', score: 10000 },
+  { username: 'INTERN_01', score: 5000 },
+  { username: 'MAIL_ROOM', score: 1000 },
 ];

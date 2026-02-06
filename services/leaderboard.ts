@@ -11,6 +11,20 @@ import {
   getDocs,
   where
 } from 'firebase/firestore';
+import { getAuth, signInAnonymously } from 'firebase/auth';
+
+const auth = getAuth();
+
+const ensureAuth = async () => {
+  if (!auth.currentUser) {
+    try {
+      await signInAnonymously(auth);
+    } catch (error) {
+      console.error('Auth failed:', error);
+      // Continue anyway, maybe rules are public
+    }
+  }
+};
 
 export interface LeaderboardEntry {
   username: string;
@@ -25,6 +39,7 @@ const LEADERBOARD_COLLECTION = 'leaderboard';
  * Check if a username is available
  */
 export const checkUsernameAvailability = async (username: string): Promise<boolean> => {
+  await ensureAuth();
   const docRef = doc(db, LEADERBOARD_COLLECTION, username.toLowerCase());
   const docSnap = await getDoc(docRef);
   return !docSnap.exists();
@@ -34,6 +49,7 @@ export const checkUsernameAvailability = async (username: string): Promise<boole
  * Register a new user with username and device ID
  */
 export const registerUser = async (username: string, deviceId: string): Promise<void> => {
+  await ensureAuth();
   const normalizedUsername = username.toLowerCase();
   
   // Check if username is available
@@ -59,6 +75,7 @@ export const submitScore = async (
   score: number, 
   deviceId: string
 ): Promise<void> => {
+  await ensureAuth();
   const normalizedUsername = username.toLowerCase();
   const docRef = doc(db, LEADERBOARD_COLLECTION, normalizedUsername);
   const docSnap = await getDoc(docRef);
@@ -87,6 +104,7 @@ export const submitScore = async (
  * Get top N entries from leaderboard
  */
 export const getLeaderboard = async (topN: number = 10): Promise<LeaderboardEntry[]> => {
+  await ensureAuth();
   const q = query(
     collection(db, LEADERBOARD_COLLECTION),
     orderBy('score', 'desc'),

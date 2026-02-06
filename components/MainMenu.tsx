@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { COLORS } from '../constants';
+import { COLORS, MOCK_LEADERBOARD } from '../constants';
 import { Play, ShieldAlert, ChevronUp, ChevronDown, Keyboard, Fingerprint, Award, Volume2, VolumeX, Plane, Bomb, UserX, Gamepad, UserPlus, Loader2 } from 'lucide-react';
 import { getLeaderboard } from '../services/leaderboard';
 import UsernameInput from './UsernameInput';
@@ -155,14 +155,11 @@ const MainMenu: React.FC<MainMenuProps> = ({ onStart, isAudioEnabled, toggleAudi
                       <div className="flex items-center justify-center py-8">
                         <Loader2 size={20} className="text-cyan-400 animate-spin" />
                       </div>
-                    ) : leaderboard.length === 0 ? (
-                      <div className="text-center py-8 text-gray-500 text-xs">
-                        No scores yet. Be the first!
-                      </div>
+
                     ) : (
-                      leaderboard.map((entry, i) => (
+                      (leaderboard.length === 0 ? MOCK_LEADERBOARD : leaderboard).map((entry, i) => (
                         <div 
-                          key={entry.username}
+                          key={entry.username + i}
                           className="flex justify-between items-center text-[10px] sm:text-xs py-1 px-2 hover:bg-cyan-500/10 transition-colors group"
                         >
                           <div className="flex items-center gap-3">

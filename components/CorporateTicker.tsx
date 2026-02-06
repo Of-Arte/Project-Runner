@@ -4,9 +4,13 @@ import { COLORS } from '../constants';
 
 const CorporateTicker: React.FC = () => {
   const [slogans, setSlogans] = useState<string[]>([
-    "INITIALIZING V-CORP NETWORK...",
-    "REMINDER: LUNCH BREAKS ARE FOR CLOSERS ONLY",
-    "REPORT SEDITION TO YOUR NEAREST KIOSK"
+    "LOADING MAIN CHARACTER ENERGY...",
+    "REMINDER: TOUCHING GRASS IS OPTIONAL BUT RECOMMENDED",
+    "NO CAP DETECTED IN YOUR VICINITY",
+    "SKILL ISSUE? REPORT TO HR (THEY WON'T HELP)",
+    "CERTIFIED BRUH MOMENT INCOMING",
+    "IT'S GIVING... UNEMPLOYMENT",
+    "L + RATIO + YOU FELL OFF + TOUCH GRASS"
   ]);
 
   useEffect(() => {

@@ -15,11 +15,12 @@ interface GameCanvasProps {
   setScore: (score: number) => void;
   setLives: (lives: number) => void;
   setSynergy: (synergy: number) => void;
+  setIsSynergyActive: (active: boolean) => void;
   setDeathCause: (finalScore: number, cause: string) => void;
   showTutorial: boolean;
 }
 
-const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setScore, setLives, setSynergy, setDeathCause, showTutorial }) => {
+const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setScore, setLives, setSynergy, setIsSynergyActive, setDeathCause, showTutorial }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>(0);
@@ -222,6 +223,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
         if (synergyActiveFramesRef.current === 0) {
             synergyMeterRef.current = 0;
             setSynergy(0);
+            setIsSynergyActive(false);
         }
     }
 
@@ -274,6 +276,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
                 setSynergy(synergyMeterRef.current);
                 if (synergyMeterRef.current >= 100) {
                     synergyActiveFramesRef.current = SYNERGY_DURATION;
+                    setIsSynergyActive(true);
                     soundService.playSynergyStart();
                     shakeRef.current = 10;
                 }
@@ -344,7 +347,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
       const p = particlesRef.current[i]; p.x += p.vx; p.y += p.vy; p.life -= 0.05;
       if (p.life <= 0) particlesRef.current.splice(i, 1);
     }
-  }, [gameState, setScore, setGameState, setDeathCause, setLives, setSynergy]);
+  }, [gameState, setScore, setGameState, setDeathCause, setLives, setSynergy, setIsSynergyActive]);
 
   const draw = useCallback((ctx: CanvasRenderingContext2D) => {
     const { width, height, groundY } = dimensionsRef.current;

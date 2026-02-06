@@ -14,31 +14,31 @@ const TerminationScreen: React.FC<TerminationScreenProps> = ({ score, cause, onR
     const intScore = Math.floor(score);
     if (intScore < 500) {
       return {
-        title: "LIQUIDATION",
-        body: "Asset failed thresholds. Motor functions insufficient. Immediate recycling authorized.",
+        title: "STRAIGHT COOKED",
+        body: "Bro really thought he could run. That's an L + ratio. Touch grass and try again fr fr.",
         grade: "F",
-        severance: "Biosludge Fee: 50Cr"
+        severance: "Negative Aura Points: -1000"
       };
     } else if (intScore < 1500) {
       return {
-        title: "FAILED PROBATION",
-        body: "Adequate metabolism, lacking foresight. Algorithms predict persistent future failure.",
+        title: "MID PERFORMANCE",
+        body: "Giving NPC energy. Main character arc cancelled. You're literally the side quest nobody asked for.",
         grade: "D-",
-        severance: "None. Uniform cost deducted."
+        severance: "Participation Trophy (Digital)"
       };
     } else if (intScore < 3000) {
       return {
-        title: "ASSET BURNOUT",
-        body: "Stress limits exceeded. Substrate compromised by choice of exhaustion.",
+        title: "LOWKEY COOKED",
+        body: "Had potential but fumbled the bag. That's what we call a certified bruh moment, no cap.",
         grade: "C",
-        severance: "5% Off Organ Replacement."
+        severance: "5% Off Copium Subscription"
       };
     } else {
       return {
-        title: "OBSOLESCENCE",
-        body: "Productivity peaked. Retirement forced to prevent pension accrual. Efficiency met.",
+        title: "ALMOST VALID",
+        body: "Respectfully, you ate but then choked. Skill issue detected. Run it back and lock in this time.",
         grade: "B+",
-        severance: "Digital NFT Gold Watch."
+        severance: "Rare W Badge (Expired)"
       };
     }
   }, [score]);
@@ -47,8 +47,8 @@ const TerminationScreen: React.FC<TerminationScreenProps> = ({ score, cause, onR
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md p-2 sm:p-4 overflow-hidden">
       {/* Container scales based on container-query style logic via tailwind height breakpoints */}
       <div 
-        className="max-w-md w-full max-h-full border-2 p-3 sm:p-5 relative flex flex-col gap-2 sm:gap-4 shadow-[0_0_60px_rgba(255,0,0,0.4)] transition-all"
-        style={{ borderColor: COLORS.NEON_RED, backgroundColor: '#050505' }}
+        className="max-w-md w-full max-h-full border-2 p-3 sm:p-5 relative flex flex-col gap-2 sm:gap-4 shadow-[0_0_60px_rgba(255,0,0,0.6)] animate-[pulse_3s_infinite]"
+        style={{ borderColor: COLORS.NEON_RED, backgroundColor: '#050505', boxShadow: '0 0 40px rgba(255, 42, 42, 0.3), inset 0 0 20px rgba(255, 0, 0, 0.1)' }}
       >
         {/* Decorative Corners */}
         <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-red-500"></div>
@@ -76,8 +76,11 @@ const TerminationScreen: React.FC<TerminationScreenProps> = ({ score, cause, onR
                 <span className="text-red-500 font-black text-sm">{review.grade}</span>
             </div>
             <div className="col-span-2 pt-1">
-                <span className="text-gray-500 text-[8px] uppercase block">Reason for liquidation</span>
+                <span className="text-gray-500 text-[8px] uppercase block">Reason for termination</span>
                 <span className="text-red-400 font-bold uppercase truncate block text-[9px] sm:text-[11px]">{cause}</span>
+                <span className="text-red-500/80 font-mono text-[8px] uppercase tracking-tight block mt-0.5 animate-pulse">
+                  &gt; It's giving skill issue.
+                </span>
             </div>
         </div>
 
@@ -95,12 +98,17 @@ const TerminationScreen: React.FC<TerminationScreenProps> = ({ score, cause, onR
 
             <button 
                 onClick={onRestart}
-                className="w-full bg-red-600 hover:bg-red-500 active:scale-95 text-black font-black py-3 sm:py-4 px-4 flex items-center justify-center gap-3 transition-all uppercase tracking-[0.15em] text-xs sm:text-sm shadow-[0_0_20px_rgba(220,38,38,0.4)]"
+                className="w-full bg-red-600 hover:bg-red-500 active:scale-95 text-black font-black py-3 sm:py-4 px-4 flex items-center justify-center gap-3 transition-all uppercase tracking-[0.15em] text-xs sm:text-sm group relative overflow-hidden"
+                style={{ 
+                  boxShadow: '0 0 30px rgba(220,38,38,0.6)',
+                  animation: 'bounce 2s infinite'
+                }}
             >
+                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 skew-y-12"></div>
                 <RefreshCw size={16} className="animate-spin" style={{ animationDuration: '4s' }} /> RE-ENTER QUEUE
             </button>
             <p className="text-[8px] text-gray-700 font-mono text-center uppercase tracking-tighter">
-              Failure is an asset. Try again.
+               System Reboot Required
             </p>
         </div>
       </div>

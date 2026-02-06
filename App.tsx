@@ -5,18 +5,43 @@ import TerminationScreen from "./components/TerminationScreen";
 import MainMenu from "./components/MainMenu";
 import { GameState } from "./types";
 import { COLORS, INITIAL_LIVES } from "./constants";
-import { Smartphone, RotateCw, Zap, Activity } from "lucide-react";
+import { Smartphone, RotateCw, Zap, Award, Volume2, VolumeX } from "lucide-react";
 
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(GameState.MENU);
   const [score, setScore] = useState(0);
   const [lives, setLives] = useState(INITIAL_LIVES);
   const [synergy, setSynergy] = useState(0);
+  const [isSynergyActive, setIsSynergyActive] = useState(false);
   const [deathCause, setDeathCause] = useState("Unknown");
 
   const [isFirstRun, setIsFirstRun] = useState(true);
   const [deathStreak, setDeathStreak] = useState(0);
   const [showTutorial, setShowTutorial] = useState(true);
+
+  // Audio State
+  const [isAudioEnabled, setIsAudioEnabled] = useState(false);
+  const audioRef = React.useRef<HTMLAudioElement | null>(null);
+
+  const toggleAudio = () => {
+    if (!audioRef.current) return;
+    
+    if (isAudioEnabled) {
+      audioRef.current.pause();
+      setIsAudioEnabled(false);
+    } else {
+      audioRef.current.play().catch(e => console.error("Audio playback failed:", e));
+      setIsAudioEnabled(true);
+    }
+  };
+
+  // Ensure audio loops and persists
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.loop = true;
+      audioRef.current.volume = 0.5;
+    }
+  }, []);
 
   const handleGameOver = (finalScore: number, cause: string) => {
     setScore(finalScore);
@@ -32,6 +57,7 @@ const App: React.FC = () => {
 
     setLives(INITIAL_LIVES);
     setSynergy(0);
+    setIsSynergyActive(false);
     if (isFirstRun) setIsFirstRun(false);
     setGameState(GameState.PLAYING);
   };
@@ -41,6 +67,9 @@ const App: React.FC = () => {
       className="h-[100dvh] w-screen flex flex-col items-center justify-between relative overflow-hidden touch-none selection:bg-none"
       style={{ backgroundColor: COLORS.DARK_BG }}
     >
+      {/* Global Audio Element */}
+      <audio ref={audioRef} src="/soundtrack.mp3" preload="auto" />
+
       {gameState === GameState.PLAYING && (
         <div className="fixed inset-0 z-[100] bg-black flex-col items-center justify-center p-6 text-center hidden portrait:flex lg:hidden">
           <div className="relative mb-4">
@@ -68,64 +97,109 @@ const App: React.FC = () => {
       <div className="scanline z-50 pointer-events-none"></div>
 
       {/* Header HUD */}
-      <div className="w-full flex justify-between items-center px-4 py-2 border-b-2 border-gray-800 bg-black/50 backdrop-blur z-20 shrink-0 h-16">
-        <div className="flex flex-col gap-1">
-          <span className="text-[8px] text-gray-500 font-mono leading-none uppercase tracking-widest">
-            Biological Integrity
+      <div className="absolute top-0 left-0 w-full flex justify-between items-center px-4 py-2 z-20 h-16 pointer-events-none">
+        <div className="flex flex-col gap-1 px-3 py-2 rounded-lg border transition-all duration-300 pointer-events-auto" 
+          style={{ 
+            textShadow: '0 0 10px rgba(0,0,0,0.8)',
+            borderColor: isSynergyActive ? '#fff' : 'rgba(34, 211, 238, 0.3)',
+            boxShadow: isSynergyActive 
+              ? '0 0 25px #fff, inset 0 0 10px #fff' 
+              : '0 0 15px rgba(34, 211, 238, 0.2), inset 0 0 5px rgba(34, 211, 238, 0.1)',
+            transform: isSynergyActive ? 'scale(1.05)' : 'scale(1)'
+          }}>
+          <span className="text-[8px] text-gray-300 font-mono leading-none uppercase tracking-widest">
+            Lives
           </span>
           <div className="flex gap-1">
             {[...Array(INITIAL_LIVES)].map((_, i) => (
               <Zap
                 key={i}
                 size={14}
-                className={`transition-all duration-500 ${i < lives ? "text-cyan-400 fill-cyan-400" : "text-gray-800 opacity-20"}`}
+                className={`transition-all duration-500 ${i < lives ? (isSynergyActive ? "text-white fill-white animate-pulse" : "text-cyan-400 fill-cyan-400") : "text-gray-800 opacity-20"}`}
               />
             ))}
           </div>
         </div>
 
-        <div className="flex flex-col items-center w-1/3 max-w-[200px]">
-          <div className="flex items-center gap-1 mb-1">
-            <Activity
-              size={10}
-              className={
-                synergy >= 100 ? "text-white animate-pulse" : "text-gray-500"
-              }
-            />
-            <span className="text-[8px] text-gray-500 font-mono uppercase tracking-widest">
-              Synergy Drive
+        <div className="absolute left-1/2 flex flex-col items-center w-1/3 max-w-[200px] px-3 py-2 rounded-lg border transition-all duration-300 pointer-events-auto" 
+          style={{ 
+            textShadow: '0 0 10px rgba(0,0,0,0.8)',
+            borderColor: isSynergyActive ? '#fff' : 'rgba(168, 85, 247, 0.3)',
+            boxShadow: isSynergyActive 
+              ? '0 0 25px #fff, inset 0 0 10px #fff' 
+              : '0 0 15px rgba(168, 85, 247, 0.2), inset 0 0 5px rgba(168, 85, 247, 0.1)',
+            transform: isSynergyActive ? 'translateX(-50%) scale(1.1)' : 'translateX(-50%) scale(1)'
+          }}>
+          <div className="flex items-center gap-2 mb-1">
+            <button 
+              onClick={toggleAudio}
+              className="p-0.5 hover:bg-white/10 rounded-sm transition-colors group focus:outline-none"
+              aria-label={isAudioEnabled ? "Mute Music" : "Enable Music"}
+            >
+              {isAudioEnabled ? (
+                <Volume2 size={10} className={isSynergyActive ? "text-white" : "text-cyan-400"} />
+              ) : (
+                <VolumeX size={10} className="text-gray-500 group-hover:text-cyan-400 transition-colors" />
+              )}
+            </button>
+            <span className="text-[8px] text-gray-300 font-mono uppercase tracking-widest">
+              Aura
             </span>
           </div>
-          <div className="w-full h-2 bg-gray-900 border border-gray-800 relative overflow-hidden">
+          <div className="w-full h-2 bg-gray-900/60 border border-gray-700/50 relative overflow-hidden rounded-sm">
             <div
-              className={`h-full transition-all duration-300 ${synergy >= 100 ? "bg-white animate-pulse shadow-[0_0_10px_#fff]" : "bg-cyan-500"}`}
+              className={`h-full transition-all duration-300 ${isSynergyActive ? "bg-white animate-pulse shadow-[0_0_15px_#fff]" : "bg-cyan-500"}`}
               style={{ width: `${Math.min(synergy, 100)}%` }}
             />
           </div>
         </div>
 
-        <div className="flex flex-col items-end">
-          <span className="text-[8px] text-gray-500 font-mono leading-none uppercase tracking-widest">
-            Score
-          </span>
-          <span className="text-yellow-400 font-bold text-xl md:text-3xl font-mono tabular-nums leading-none">
+        <div className="flex flex-col items-end px-3 py-2 rounded-lg border transition-all duration-300 pointer-events-auto" 
+          style={{ 
+            textShadow: '0 0 10px rgba(0,0,0,0.8)',
+            borderColor: isSynergyActive ? '#fff' : 'rgba(250, 204, 21, 0.3)',
+            boxShadow: isSynergyActive 
+              ? '0 0 25px #fff, inset 0 0 10px #fff' 
+              : '0 0 15px rgba(250, 204, 21, 0.2), inset 0 0 5px rgba(250, 204, 21, 0.1)',
+            transform: isSynergyActive ? 'scale(1.1) translateY(5px)' : 'scale(1)'
+          }}>
+          <div className="flex items-center gap-2">
+            {isSynergyActive && (
+              <span className="text-[7px] bg-white text-black px-1 font-black animate-pulse rounded-sm">MC MODE</span>
+            )}
+            <span className="text-[8px] text-gray-300 font-mono leading-none uppercase tracking-widest">
+              Score
+            </span>
+          </div>
+          <span className="text-yellow-400 font-bold text-xl md:text-3xl font-mono tabular-nums leading-none" 
+            style={{ 
+              textShadow: isSynergyActive ? '0 0 20px #fff' : '0 0 15px rgba(250,204,21,0.5)',
+              color: isSynergyActive ? '#fff' : '#facc15'
+            }}>
             {score.toString().padStart(6, "0")}
           </span>
         </div>
       </div>
 
-      <div className="relative w-full flex-grow overflow-hidden z-10 flex items-center justify-center min-h-0 bg-black">
+      <div className={`relative w-full flex-grow overflow-hidden z-10 flex items-center justify-center min-h-0 bg-black transition-all duration-500 ${isSynergyActive ? 'scale-105 saturate-150' : ''}`}>
         <GameCanvas
           gameState={gameState}
           setGameState={setGameState}
           setScore={setScore}
           setLives={setLives}
           setSynergy={setSynergy}
+          setIsSynergyActive={setIsSynergyActive}
           setDeathCause={handleGameOver}
           showTutorial={showTutorial}
         />
 
-        {gameState === GameState.MENU && <MainMenu onStart={handleStart} />}
+        {gameState === GameState.MENU && (
+          <MainMenu 
+            onStart={handleStart} 
+            isAudioEnabled={isAudioEnabled}
+            toggleAudio={toggleAudio}
+          />
+        )}
 
         {gameState === GameState.GAME_OVER && (
           <TerminationScreen

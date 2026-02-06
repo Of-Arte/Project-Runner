@@ -1,12 +1,22 @@
 import React from 'react';
 import { COLORS } from '../constants';
-import { Play, ShieldAlert, ChevronUp, ChevronDown, Keyboard, Fingerprint } from 'lucide-react';
+import { Play, ShieldAlert, ChevronUp, ChevronDown, Keyboard, Fingerprint, Award, Volume2, VolumeX, Plane, Bomb, UserX, Gamepad} from 'lucide-react';
 
 interface MainMenuProps {
   onStart: () => void;
+  isAudioEnabled: boolean;
+  toggleAudio: () => void;
 }
 
-const MainMenu: React.FC<MainMenuProps> = ({ onStart }) => {
+const MOCK_LEADERBOARD = [
+  { rank: 1, name: "CEO_PROPHET", score: 982300 },
+  { rank: 2, name: "ASSET_#8080", score: 845120 },
+  { rank: 3, name: "VOID_RUNNER", score: 721050 },
+  { rank: 4, name: "NEURAL_NET_V2", score: 654900 },
+  { rank: 5, name: "INTERN_#001", score: 120500 },
+];
+
+const MainMenu: React.FC<MainMenuProps> = ({ onStart, isAudioEnabled, toggleAudio }) => {
   return (
     <div className="absolute inset-0 z-40 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-2 sm:p-4 overflow-hidden">
       {/* Holographic background effect */}
@@ -35,6 +45,43 @@ const MainMenu: React.FC<MainMenuProps> = ({ onStart }) => {
         ))}
       </div>
 
+      {/* UFO Observer */}
+      <div 
+        className="absolute pointer-events-none opacity-70"
+        style={{
+          animation: 'ufoFloat 25s ease-in-out infinite, ufoWobble 3s ease-in-out infinite',
+          width: '60px',
+          height: '60px',
+          filter: 'drop-shadow(0 0 15px rgba(34, 211, 238, 0.6))'
+        }}
+      >
+        <svg viewBox="0 0 100 100" className="w-full h-full">
+          {/* UFO Body */}
+          <ellipse cx="50" cy="45" rx="35" ry="15" fill="#22d3ee" opacity="0.3" />
+          <ellipse cx="50" cy="40" rx="40" ry="12" fill="#0891b2" opacity="0.6" />
+          
+          {/* UFO Dome */}
+          <ellipse cx="50" cy="32" rx="20" ry="15" fill="#06b6d4" opacity="0.4" />
+          <circle cx="50" cy="30" r="12" fill="#67e8f9" opacity="0.3" />
+          
+          {/* Lights */}
+          <circle cx="30" cy="45" r="3" fill="#facc15" opacity="0.8">
+            <animate attributeName="opacity" values="0.3;1;0.3" dur="1.5s" repeatCount="indefinite" />
+          </circle>
+          <circle cx="50" cy="48" r="3" fill="#facc15" opacity="0.8">
+            <animate attributeName="opacity" values="0.3;1;0.3" dur="1.5s" begin="0.5s" repeatCount="indefinite" />
+          </circle>
+          <circle cx="70" cy="45" r="3" fill="#facc15" opacity="0.8">
+            <animate attributeName="opacity" values="0.3;1;0.3" dur="1.5s" begin="1s" repeatCount="indefinite" />
+          </circle>
+          
+          {/* Beam (subtle) */}
+          <path d="M 40 50 L 35 90 L 65 90 L 60 50 Z" fill="#22d3ee" opacity="0.1">
+            <animate attributeName="opacity" values="0;0.15;0" dur="4s" repeatCount="indefinite" />
+          </path>
+        </svg>
+      </div>
+
       <div className="w-full max-w-4xl h-full flex flex-col items-center justify-center space-y-2 sm:space-y-4 relative z-10">
           {/* Header Section with fade-in */}
           <div 
@@ -54,75 +101,84 @@ const MainMenu: React.FC<MainMenuProps> = ({ onStart }) => {
               >
                   V-CORP
               </h1>
-              <p className="text-[10px] sm:text-sm md:text-lg tracking-[0.3em] text-cyan-400 font-light uppercase opacity-0"
+              <p className="text-[10px] sm:text-sm md:text-lg tracking-[0.3em] text-cyan-400 font-light uppercase opacity-0 flex items-center justify-center gap-2"
                  style={{ animation: 'fadeInUp 0.8s ease-out 0.2s forwards' }}>
-                Endless Grind Simulation
+                <Gamepad size={19} className="text-yellow-400 hidden sm:inline" />
+
+                PROJECT LOOP
+                <Gamepad size={19} className="text-yellow-400 hidden sm:inline" />
               </p>
           </div>
 
-          {/* Controls Container with staggered fade-in and pulsing borders */}
+          {/* Leaderboard Section - Replaced large boxes */}
           <div 
-            className="grid grid-cols-2 gap-2 sm:gap-4 w-full max-w-2xl font-mono flex-shrink min-h-0 overflow-hidden opacity-0"
-            style={{ animation: 'fadeInUp 0.8s ease-out 0.4s forwards' }}
+            className="w-full max-w-xl bg-gray-900/40 border border-cyan-500/30 backdrop-blur-sm p-4 rounded relative overflow-hidden opacity-0"
+            style={{ 
+              animation: 'fadeInUp 0.8s ease-out 0.4s forwards',
+              boxShadow: '0 0 15px rgba(34, 211, 238, 0.1)'
+            }}
           >
+              <div className="absolute inset-0 scanline-subtle pointer-events-none opacity-10"></div>
+              <h3 className="text-cyan-400 font-bold font-mono text-xs mb-3 tracking-[0.2em] flex items-center justify-between border-b border-cyan-500/20 pb-2">
+                <span className="flex items-center gap-2">
+                  <Award size={12} className="text-yellow-400" />
+                  CORPORATE RANKINGS
+                </span>
+                <span className="text-[8px] text-gray-500">LIVE</span>
+              </h3>
               
-              {/* Input Protocols (Touch) */}
-              <div 
-                className="bg-gray-900/90 border border-gray-700 p-2 sm:p-3 relative overflow-hidden rounded flex flex-col justify-center transition-all hover:scale-105"
-                style={{ animation: 'pulseGlow 3s ease-in-out infinite, borderPulse 3s ease-in-out infinite' }}
-              >
-                  <Fingerprint 
-                    className="absolute top-1 right-1 w-8 h-8 sm:w-12 sm:h-12 text-cyan-400 opacity-5" 
-                    style={{ animation: 'float 4s ease-in-out infinite' }}
-                  />
-                  <h3 className="text-cyan-400 font-bold border-b border-gray-700 pb-1 mb-1 flex items-center gap-1.5 text-[10px] sm:text-xs">
-                      <Fingerprint size={12} /> TOUCH
-                  </h3>
-                  <div className="space-y-1 text-[9px] sm:text-xs text-gray-400">
-                      <div className="flex justify-between items-center">
-                          <span className="truncate mr-1">JUMP</span>
-                          <span className="text-yellow-400 font-bold flex items-center whitespace-nowrap">UP <ChevronUp size={10}/></span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                          <span className="truncate mr-1">DUCK</span>
-                          <span className="text-yellow-400 font-bold flex items-center whitespace-nowrap">DOWN <ChevronDown size={10}/></span>
-                      </div>
+              <div className="space-y-2 font-mono">
+                {MOCK_LEADERBOARD.map((entry, i) => (
+                  <div 
+                    key={entry.name}
+                    className="flex justify-between items-center text-[10px] sm:text-xs py-1 px-2 hover:bg-cyan-500/10 transition-colors group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-gray-500 w-4 font-bold">{entry.rank}</span>
+                      <span className={`font-bold transition-all group-hover:text-cyan-300 ${i === 1 ? 'text-yellow-400' : 'text-gray-300'}`}>
+                        {entry.name}
+                      </span>
+                    </div>
+                    <span className="text-cyan-500 font-bold tabular-nums">
+                      {entry.score.toLocaleString()}
+                    </span>
                   </div>
-              </div>
-
-              {/* Manual Override (Desktop) */}
-              <div 
-                className="bg-gray-900/90 border border-gray-700 p-2 sm:p-3 relative overflow-hidden rounded flex flex-col justify-center transition-all hover:scale-105"
-                style={{ animation: 'pulseGlow 3s ease-in-out infinite 0.5s, borderPulse 3s ease-in-out infinite 0.5s' }}
-              >
-                  <Keyboard 
-                    className="absolute top-1 right-1 w-8 h-8 sm:w-12 sm:h-12 text-yellow-400 opacity-5"
-                    style={{ animation: 'float 4s ease-in-out infinite 0.5s' }}
-                  />
-                  <h3 className="text-yellow-400 font-bold border-b border-gray-700 pb-1 mb-1 flex items-center gap-1.5 text-[10px] sm:text-xs">
-                      <Keyboard size={12} /> DESKTOP
-                  </h3>
-                  <div className="space-y-1 text-[9px] sm:text-xs text-gray-400">
-                      <div className="flex justify-between items-center">
-                          <span className="truncate mr-1">JUMP</span>
-                          <span className="bg-gray-800 px-1 py-0.5 rounded text-[8px] sm:text-[10px] border border-gray-600">SPACE</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                          <span className="truncate mr-1">DUCK</span>
-                          <span className="bg-gray-800 px-1 py-0.5 rounded text-[8px] sm:text-[10px] border border-gray-600">DOWN</span>
-                      </div>
-                  </div>
+                ))}
               </div>
           </div>
           
-          {/* Hazards with fade-in */}
+          {/* Subtle Control Hints */}
           <div 
-            className="hidden sm:flex flex-wrap justify-center gap-4 text-[10px] text-red-400 font-mono uppercase tracking-widest opacity-0 flex-shrink-0"
+            className="flex flex-wrap justify-center gap-6 py-2 opacity-0"
             style={{ animation: 'fadeInUp 0.8s ease-out 0.6s forwards' }}
           >
-              <span className="flex items-center gap-1"><ShieldAlert size={10}/> DRONES</span>
-              <span className="flex items-center gap-1"><ShieldAlert size={10}/> MINES</span>
-              <span className="flex items-center gap-1"><ShieldAlert size={10}/> HR</span>
+              <div className="flex items-center gap-2 text-[10px] font-mono text-gray-500 uppercase tracking-widest bg-gray-800/50 px-3 py-1.5 rounded-full border border-gray-700 hover:border-cyan-500/50 transition-all">
+                <Fingerprint size={12} className="text-cyan-400" />
+                <span>TAP <span className="text-white font-bold">UP</span> / <span className="text-white font-bold">DOWN</span></span>
+              </div>
+              <div className="flex items-center gap-2 text-[10px] font-mono text-gray-500 uppercase tracking-widest bg-gray-800/50 px-3 py-1.5 rounded-full border border-gray-700 hover:border-yellow-500/50 transition-all">
+                <Keyboard size={12} className="text-yellow-400" />
+                <span><span className="text-white font-bold">SPACE</span> JUMP / <span className="text-white font-bold">DOWN</span> SLIDE</span>
+              </div>
+          </div>
+          
+          {/* Hazards Sub-info */}
+          <div 
+            className="hidden sm:flex flex-wrap justify-center gap-4 text-[9px] font-mono uppercase tracking-[0.3em] opacity-0 flex-shrink-0"
+            style={{ animation: 'fadeInUp 0.8s ease-out 0.7s forwards' }}
+          >
+              <span className="flex items-center gap-1.5 px-3 py-1.5 bg-red-950/30 border border-red-900/40 rounded-sm text-red-400/80 hover:text-red-300 hover:border-red-700/60 transition-all">
+                <Plane size={12} className="rotate-90" />
+                DUCK DRONES
+              </span>
+              <span className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-950/30 border border-orange-900/40 rounded-sm text-orange-400/80 hover:text-orange-300 hover:border-orange-700/60 transition-all">
+                <Bomb size={12} />
+                JUMP MINES
+              </span>
+              <span className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-950/30 border border-purple-900/40 rounded-sm text-purple-400/80 hover:text-purple-300 hover:border-purple-700/60 transition-all">
+                <UserX size={12} />
+                EVADE MANAGEMENT
+              </span>
           </div>
 
           {/* Action Section with enhanced button */}
@@ -130,6 +186,20 @@ const MainMenu: React.FC<MainMenuProps> = ({ onStart }) => {
             className="w-full max-w-xs flex flex-col items-center gap-2 flex-shrink-0 opacity-0"
             style={{ animation: 'fadeInUp 0.8s ease-out 0.8s forwards' }}
           >
+            <button 
+              onClick={toggleAudio}
+              className="mb-2 flex items-center gap-2 px-3 py-1 bg-black/40 border border-cyan-500/30 rounded-full hover:bg-cyan-500/10 transition-colors backdrop-blur-sm group"
+            >
+              {isAudioEnabled ? (
+                <Volume2 size={12} className="text-cyan-400 animate-pulse" />
+              ) : (
+                <VolumeX size={12} className="text-gray-500 group-hover:text-cyan-400 transition-colors" />
+              )}
+              <span className={`text-[8px] font-mono tracking-widest ${isAudioEnabled ? 'text-cyan-400' : 'text-gray-500 group-hover:text-cyan-400'}`}>
+                MUSIC: {isAudioEnabled ? 'ON' : 'OFF'}
+              </span>
+            </button>
+
             <button 
                 onClick={onStart}
                 className="group relative px-6 py-3 sm:px-10 sm:py-4 bg-yellow-400 text-black font-black text-lg sm:text-xl tracking-widest uppercase hover:bg-yellow-300 transition-all w-full overflow-hidden rounded-sm active:scale-95 hover:scale-105 hover:shadow-[0_0_30px_rgba(250,204,21,0.6)]"
@@ -152,9 +222,6 @@ const MainMenu: React.FC<MainMenuProps> = ({ onStart }) => {
                   }}
                 />
             </button>
-            <p className="text-[8px] sm:text-[10px] text-gray-600 font-mono uppercase tracking-tighter opacity-60">
-                Asset #8080: Status: Pending...
-            </p>
           </div>
       </div>
     </div>

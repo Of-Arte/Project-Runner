@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { COLORS, MOCK_LEADERBOARD } from '../constants';
 import { Play, ShieldAlert, ChevronUp, ChevronDown, Keyboard, Fingerprint, Award, Volume2, VolumeX, Plane, Bomb, UserX, Gamepad, UserPlus, Loader2 } from 'lucide-react';
+import ControlsGuidance from './ControlsGuidance';
 import { UserProfile, logout } from '../services/auth';
+import { getLeaderboard } from '../services/leaderboard';
 // AuthModal moved to App level
 
 interface MainMenuProps {
@@ -181,19 +183,7 @@ const MainMenu: React.FC<MainMenuProps> = ({ onStart, isAudioEnabled, toggleAudi
           {/* RIGHT COLUMN (Landscape) / BOTTOM (Portrait) - Controls & Actions */}
           <div className="flex flex-col items-center space-y-3 landscape:flex-1 landscape:justify-center landscape:space-y-4 landscape:max-w-md">
               {/* Subtle Control Hints */}
-              <div 
-                className="flex flex-wrap justify-center gap-6 py-2 opacity-0"
-                style={{ animation: 'fadeInUp 0.8s ease-out 0.6s forwards' }}
-              >
-                  <div className="flex items-center gap-2 text-[10px] font-mono text-gray-500 uppercase tracking-widest bg-gray-800/50 px-3 py-1.5 rounded-full border border-gray-700 hover:border-cyan-500/50 transition-all">
-                    <Fingerprint size={12} className="text-cyan-400" />
-                    <span>TAP <span className="text-white font-bold">UP</span> / <span className="text-white font-bold">DOWN</span></span>
-                  </div>
-                  <div className="flex items-center gap-2 text-[10px] font-mono text-gray-500 uppercase tracking-widest bg-gray-800/50 px-3 py-1.5 rounded-full border border-gray-700 hover:border-yellow-500/50 transition-all">
-                    <Keyboard size={12} className="text-yellow-400" />
-                    <span><span className="text-white font-bold">SPACE</span> JUMP / <span className="text-white font-bold">DOWN</span> SLIDE</span>
-                  </div>
-              </div>
+              <ControlsGuidance mode="static" />
               
               {/* Hazards Sub-info */}
               <div 

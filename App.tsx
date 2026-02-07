@@ -62,6 +62,18 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // Prevent context menu (right click / long press)
+  useEffect(() => {
+    const handleContextMenu = (e: MouseEvent | TouchEvent) => {
+      e.preventDefault();
+    };
+
+    document.addEventListener('contextmenu', handleContextMenu);
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu);
+    };
+  }, []);
+
   const handleGameOver = async (finalScore: number, cause: string) => {
     setScore(finalScore);
     setDeathCause(cause);

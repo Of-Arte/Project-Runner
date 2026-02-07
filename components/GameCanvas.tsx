@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
+import ControlsGuidance from './ControlsGuidance';
 import { GameState, GameObject, ObstacleType, PlayerState, Particle, Star, Credit } from '../types';
 import { 
   GRAVITY, JUMP_FORCE, 
@@ -503,22 +504,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
             onMouseLeave={handleMouseLeave}
         />
         {guideVisible && gameState === GameState.PLAYING && (
-            <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center bg-black/40 z-50 animate-pulse">
-                <div className="flex gap-16">
-                     <div className="flex flex-col items-center gap-2">
-                        <div className="w-16 h-24 border-2 border-dashed border-cyan-400 rounded-full flex flex-col items-center pt-2 bg-cyan-900/20">
-                            <div className="w-12 h-12 bg-cyan-400/50 rounded-full animate-bounce mt-auto mb-2"></div>
-                        </div>
-                        <span className="text-cyan-400 font-bold tracking-widest text-lg">TAP TO JUMP</span>
-                     </div>
-                     <div className="flex flex-col items-center gap-2">
-                        <div className="w-16 h-24 border-2 border-dashed border-yellow-400 rounded-full flex flex-col items-center pb-2 bg-yellow-900/20">
-                            <div className="w-12 h-12 bg-yellow-400/50 rounded-full animate-bounce mt-2"></div>
-                        </div>
-                        <span className="text-yellow-400 font-bold tracking-widest text-lg">SWIPE DOWN</span>
-                     </div>
-                </div>
-            </div>
+            <ControlsGuidance mode="overlay" />
         )}
         {gameState === GameState.PAUSED && (
              <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-[60] backdrop-blur-[2px]">

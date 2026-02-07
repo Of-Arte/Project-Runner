@@ -128,7 +128,7 @@ const MainMenu: React.FC<MainMenuProps> = ({ onStart, isAudioEnabled, toggleAudi
                   <p className="text-[10px] sm:text-sm md:text-lg landscape:text-sm tracking-[0.3em] text-cyan-400 font-light uppercase opacity-0 flex items-center justify-center gap-2"
                      style={{ animation: 'fadeInUp 0.8s ease-out 0.2s forwards' }}>
                     <Gamepad size={19} className="text-yellow-400 hidden sm:inline landscape:inline" />
-                    PROJECT LOOP
+                    PROJECT RUNNER
                     <Gamepad size={19} className="text-yellow-400 hidden sm:inline landscape:inline" />
                   </p>
               </div>

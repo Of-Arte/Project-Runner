@@ -6,7 +6,17 @@ import MainMenu from "./components/MainMenu";
 import QuitModal from "./components/QuitModal";
 import { GameState } from "./types";
 import { COLORS, INITIAL_LIVES } from "./constants";
-import { Smartphone, RotateCw, Zap, Award, Volume2, VolumeX, Pause, Play, LogOut } from "lucide-react";
+import {
+  Smartphone,
+  RotateCw,
+  Zap,
+  Award,
+  Volume2,
+  VolumeX,
+  Pause,
+  Play,
+  LogOut,
+} from "lucide-react";
 import { submitScore } from "./services/leaderboard";
 import { subscribeToAuth, UserProfile } from "./services/auth";
 import AuthModal from "./components/AuthModal";
@@ -44,12 +54,14 @@ const App: React.FC = () => {
 
   const toggleAudio = () => {
     if (!audioRef.current) return;
-    
+
     if (isAudioEnabled) {
       audioRef.current.pause();
       setIsAudioEnabled(false);
     } else {
-      audioRef.current.play().catch(e => console.error("Audio playback failed:", e));
+      audioRef.current
+        .play()
+        .catch((e) => console.error("Audio playback failed:", e));
       setIsAudioEnabled(true);
     }
   };
@@ -68,9 +80,9 @@ const App: React.FC = () => {
       e.preventDefault();
     };
 
-    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener("contextmenu", handleContextMenu);
     return () => {
-      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener("contextmenu", handleContextMenu);
     };
   }, []);
 
@@ -84,9 +96,9 @@ const App: React.FC = () => {
     // Submit score to Firebase if user is logged in
     if (user) {
       try {
-          await submitScore(user.username, Math.floor(finalScore)); // Updated signature
+        await submitScore(user.username, Math.floor(finalScore)); // Updated signature
       } catch (error) {
-        console.error('Failed to submit score:', error);
+        console.error("Failed to submit score:", error);
       }
     }
   };
@@ -124,7 +136,7 @@ const App: React.FC = () => {
 
   return (
     <div
-      className="h-[100dvh] w-screen flex flex-col items-center justify-between relative overflow-hidden touch-none selection:bg-none"
+      className="h-[100dvh] w-screen flex flex-col items-center justify-between relative overflow-hidden touch-none selection:bg-none safe-top safe-bottom safe-left safe-right"
       style={{ backgroundColor: COLORS.DARK_BG }}
     >
       {/* Global Audio Element */}
@@ -135,8 +147,10 @@ const App: React.FC = () => {
           <div className="relative mb-4">
             <Smartphone className="w-16 h-16 md:w-24 md:h-24 text-gray-600" />
             <RotateCw
-              className="w-8 h-8 md:w-12 md:h-12 text-yellow-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-spin"
-              style={{ animationDuration: "3s" }}
+              className="w-8 h-8 md:w-12 md:h-12 text-yellow-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
+              style={{
+                animation: "spin 2s linear infinite",
+              }}
             />
           </div>
           <h2 className="text-2xl md:text-3xl font-black text-yellow-400 mb-2 tracking-widest uppercase">
@@ -158,15 +172,17 @@ const App: React.FC = () => {
 
       {/* Header HUD */}
       <div className="absolute top-0 left-0 w-full flex justify-between items-center px-4 py-2 z-20 h-16 pointer-events-none">
-        <div className="flex flex-col gap-1 px-3 py-2 rounded-lg border transition-all duration-300 pointer-events-auto" 
-          style={{ 
-            textShadow: '0 0 10px rgba(0,0,0,0.8)',
-            borderColor: isSynergyActive ? '#fff' : 'rgba(34, 211, 238, 0.3)',
-            boxShadow: isSynergyActive 
-              ? '0 0 25px #fff, inset 0 0 10px #fff' 
-              : '0 0 15px rgba(34, 211, 238, 0.2), inset 0 0 5px rgba(34, 211, 238, 0.1)',
-            transform: isSynergyActive ? 'scale(1.05)' : 'scale(1)'
-          }}>
+        <div
+          className="flex flex-col gap-1 px-3 py-2 rounded-lg border transition-all duration-300 pointer-events-auto"
+          style={{
+            textShadow: "0 0 10px rgba(0,0,0,0.8)",
+            borderColor: isSynergyActive ? "#fff" : "rgba(34, 211, 238, 0.3)",
+            boxShadow: isSynergyActive
+              ? "0 0 25px #fff, inset 0 0 10px #fff"
+              : "0 0 15px rgba(34, 211, 238, 0.2), inset 0 0 5px rgba(34, 211, 238, 0.1)",
+            transform: isSynergyActive ? "scale(1.05)" : "scale(1)",
+          }}
+        >
           <span className="text-[8px] text-gray-300 font-mono leading-none uppercase tracking-widest">
             Lives
           </span>
@@ -181,25 +197,35 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        <div className="absolute left-1/2 flex flex-col items-center w-1/3 max-w-[200px] px-3 py-2 rounded-lg border transition-all duration-300 pointer-events-auto" 
-          style={{ 
-            textShadow: '0 0 10px rgba(0,0,0,0.8)',
-            borderColor: isSynergyActive ? '#fff' : 'rgba(168, 85, 247, 0.3)',
-            boxShadow: isSynergyActive 
-              ? '0 0 25px #fff, inset 0 0 10px #fff' 
-              : '0 0 15px rgba(168, 85, 247, 0.2), inset 0 0 5px rgba(168, 85, 247, 0.1)',
-            transform: isSynergyActive ? 'translateX(-50%) scale(1.1)' : 'translateX(-50%) scale(1)'
-          }}>
+        <div
+          className="absolute left-1/2 flex flex-col items-center w-1/3 max-w-[200px] px-3 py-2 rounded-lg border transition-all duration-300 pointer-events-auto"
+          style={{
+            textShadow: "0 0 10px rgba(0,0,0,0.8)",
+            borderColor: isSynergyActive ? "#fff" : "rgba(168, 85, 247, 0.3)",
+            boxShadow: isSynergyActive
+              ? "0 0 25px #fff, inset 0 0 10px #fff"
+              : "0 0 15px rgba(168, 85, 247, 0.2), inset 0 0 5px rgba(168, 85, 247, 0.1)",
+            transform: isSynergyActive
+              ? "translateX(-50%) scale(1.1)"
+              : "translateX(-50%) scale(1)",
+          }}
+        >
           <div className="flex items-center gap-2 mb-1">
-            <button 
+            <button
               onClick={toggleAudio}
               className="p-0.5 hover:bg-white/10 rounded-sm transition-colors group focus:outline-none"
               aria-label={isAudioEnabled ? "Mute Music" : "Enable Music"}
             >
               {isAudioEnabled ? (
-                <Volume2 size={10} className={isSynergyActive ? "text-white" : "text-cyan-400"} />
+                <Volume2
+                  size={10}
+                  className={isSynergyActive ? "text-white" : "text-cyan-400"}
+                />
               ) : (
-                <VolumeX size={10} className="text-gray-500 group-hover:text-cyan-400 transition-colors" />
+                <VolumeX
+                  size={10}
+                  className="text-gray-500 group-hover:text-cyan-400 transition-colors"
+                />
               )}
             </button>
             <span className="text-[8px] text-gray-300 font-mono uppercase tracking-widest">
@@ -214,26 +240,39 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex flex-col items-end px-3 py-2 rounded-lg border transition-all duration-300 pointer-events-auto" 
-          style={{ 
-            textShadow: '0 0 10px rgba(0,0,0,0.8)',
-            borderColor: isSynergyActive ? '#fff' : 'rgba(250, 204, 21, 0.3)',
-            boxShadow: isSynergyActive 
-              ? '0 0 25px #fff, inset 0 0 10px #fff' 
-              : '0 0 15px rgba(250, 204, 21, 0.2), inset 0 0 5px rgba(250, 204, 21, 0.1)',
-            transform: isSynergyActive ? 'scale(1.1) translateY(5px)' : 'scale(1)'
-          }}>
+        <div
+          className="flex flex-col items-end px-3 py-2 rounded-lg border transition-all duration-300 pointer-events-auto"
+          style={{
+            textShadow: "0 0 10px rgba(0,0,0,0.8)",
+            borderColor: isSynergyActive ? "#fff" : "rgba(250, 204, 21, 0.3)",
+            boxShadow: isSynergyActive
+              ? "0 0 25px #fff, inset 0 0 10px #fff"
+              : "0 0 15px rgba(250, 204, 21, 0.2), inset 0 0 5px rgba(250, 204, 21, 0.1)",
+            transform: isSynergyActive
+              ? "scale(1.1) translateY(5px)"
+              : "scale(1)",
+          }}
+        >
           <div className="flex items-center gap-3">
-            {(gameState === GameState.PLAYING || gameState === GameState.PAUSED) && (
+            {(gameState === GameState.PLAYING ||
+              gameState === GameState.PAUSED) && (
               <div className="flex items-center gap-1 border-r border-gray-700/50 pr-2 mr-1">
-                <button 
+                <button
                   onClick={handlePause}
                   className="p-1 hover:bg-white/10 rounded-sm transition-colors text-gray-400 hover:text-white"
-                  aria-label={gameState === GameState.PAUSED ? "Resume Game" : "Pause Game"}
+                  aria-label={
+                    gameState === GameState.PAUSED
+                      ? "Resume Game"
+                      : "Pause Game"
+                  }
                 >
-                  {gameState === GameState.PAUSED ? <Play size={12} fill="currentColor" /> : <Pause size={12} fill="currentColor" />}
+                  {gameState === GameState.PAUSED ? (
+                    <Play size={12} fill="currentColor" />
+                  ) : (
+                    <Pause size={12} fill="currentColor" />
+                  )}
                 </button>
-                <button 
+                <button
                   onClick={handleQuit}
                   className="p-1 hover:bg-red-500/20 rounded-sm transition-colors text-gray-400 hover:text-red-400"
                   aria-label="Quit to Menu"
@@ -245,17 +284,23 @@ const App: React.FC = () => {
             <div className="flex flex-col items-end">
               <div className="flex items-center gap-2 leading-none">
                 {isSynergyActive && (
-                  <span className="text-[7px] bg-white text-black px-1 font-black animate-pulse rounded-sm">MC MODE</span>
+                  <span className="text-[7px] bg-white text-black px-1 font-black animate-pulse rounded-sm">
+                    MC MODE
+                  </span>
                 )}
                 <span className="text-[8px] text-gray-300 font-mono leading-none uppercase tracking-widest">
                   Score
                 </span>
               </div>
-              <span className="text-yellow-400 font-bold text-xl md:text-3xl font-mono tabular-nums leading-none mt-1" 
-                style={{ 
-                  textShadow: isSynergyActive ? '0 0 20px #fff' : '0 0 15px rgba(250,204,21,0.5)',
-                  color: isSynergyActive ? '#fff' : '#facc15'
-                }}>
+              <span
+                className="text-yellow-400 font-bold text-xl md:text-3xl font-mono tabular-nums leading-none mt-1"
+                style={{
+                  textShadow: isSynergyActive
+                    ? "0 0 20px #fff"
+                    : "0 0 15px rgba(250,204,21,0.5)",
+                  color: isSynergyActive ? "#fff" : "#facc15",
+                }}
+              >
                 {score.toString().padStart(6, "0")}
               </span>
             </div>
@@ -263,7 +308,9 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      <div className={`relative w-full flex-grow overflow-hidden z-10 flex items-center justify-center min-h-0 bg-black transition-all duration-500 ${isSynergyActive ? 'scale-105 saturate-150' : ''}`}>
+      <div
+        className={`relative w-full flex-grow overflow-hidden z-10 flex items-center justify-center min-h-0 bg-black transition-all duration-500 ${isSynergyActive ? "scale-105 saturate-150" : ""}`}
+      >
         <GameCanvas
           gameState={gameState}
           setGameState={setGameState}
@@ -276,8 +323,8 @@ const App: React.FC = () => {
         />
 
         {gameState === GameState.MENU && (
-          <MainMenu 
-            onStart={handleStart} 
+          <MainMenu
+            onStart={handleStart}
             isAudioEnabled={isAudioEnabled}
             toggleAudio={toggleAudio}
             user={user}
@@ -297,15 +344,15 @@ const App: React.FC = () => {
         )}
 
         {showQuitModal && (
-          <QuitModal 
+          <QuitModal
             onConfirm={handleConfirmQuit}
             onCancel={handleCancelQuit}
           />
         )}
-        
+
         {/* Auth Modal Global */}
         {showAuthModal && (
-          <AuthModal 
+          <AuthModal
             onSuccess={() => setShowAuthModal(false)}
             onCancel={() => setShowAuthModal(false)}
           />

@@ -70,7 +70,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
     const handleResize = () => {
         if (containerRef.current && canvasRef.current) {
             const { offsetWidth, offsetHeight } = containerRef.current;
-            const dpr = window.devicePixelRatio || 1;
+            // Cap devicePixelRatio to prevent excessive zoom in PWA/webapp mode
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
             canvasRef.current.width = offsetWidth * dpr;
             canvasRef.current.height = offsetHeight * dpr;
             canvasRef.current.style.width = `${offsetWidth}px`;

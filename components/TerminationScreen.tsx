@@ -1,44 +1,47 @@
 import React, { useMemo } from 'react';
 import { COLORS } from '../constants';
-import { RefreshCw, FileWarning } from 'lucide-react';
+import { Recycle, RefreshCw, LogIn } from 'lucide-react';
+import { UserProfile } from '../services/auth';
 
 interface TerminationScreenProps {
   score: number;
   cause: string;
   onRestart: () => void;
+  user: UserProfile | null;
+  onLogin: () => void;
 }
 
-const TerminationScreen: React.FC<TerminationScreenProps> = ({ score, cause, onRestart }) => {
+const TerminationScreen: React.FC<TerminationScreenProps> = ({ score, cause, onRestart, user, onLogin }) => {
   
   const review = useMemo(() => {
     const intScore = Math.floor(score);
     if (intScore < 500) {
       return {
-        title: "STRAIGHT COOKED",
-        body: "Bro really thought he could run. That's an L + ratio. Touch grass and try again fr fr.",
-        grade: "F",
-        severance: "Negative Aura Points: -1000"
+        title: "YOU'VE BEEN RECYCLED",
+        body: "Look, we gave you a shot, but you were barely a rounding error. Your biomass is being reassigned to the keyboard cleaning department. Don't worry, the next asset will probably last five minutes longer.",
+        grade: "UNUSABLE",
+        award: "Economic Disposal"
       };
     } else if (intScore < 1500) {
       return {
-        title: "MID PERFORMANCE",
-        body: "Giving NPC energy. Main character arc cancelled. You're literally the side quest nobody asked for.",
-        grade: "D-",
-        severance: "Participation Trophy (Digital)"
+        title: "REPURPOSING NOTICE",
+        body: "You did okay, but 'okay' doesn't pay for the air you're breathing. We've found a great opening for you as an industrial lubricant. Thanks for the effort—someone else is already at your desk.",
+        grade: "MARGINAL",
+        award: "Participation Scrap"
       };
     } else if (intScore < 3000) {
       return {
-        title: "LOWKEY COOKED",
-        body: "Had potential but fumbled the bag. That's what we call a certified bruh moment, no cap.",
-        grade: "C",
-        severance: "5% Off Copium Subscription"
+        title: "UPGRADE INITIATED",
+        body: "Solid work. You actually almost made us a profit. Unfortunately, your shelf life has expired. We're recycling your experiences into the AI training set and your physical form into a stylish ergonomic chair.",
+        grade: "EFFICIENT",
+        award: "V-Corp Commendation"
       };
     } else {
       return {
-        title: "ALMOST VALID",
-        body: "Respectfully, you ate but then choked. Skill issue detected. Run it back and lock in this time.",
-        grade: "B+",
-        severance: "Rare W Badge (Expired)"
+        title: "ELITE SALVAGE",
+        body: "Wow. You were actually a high-value asset. It's almost a shame to break you down, but rules are rules. Your contribution will be physically integrated into the foundation of our new corporate headquarters.",
+        grade: "SUPERIOR",
+        award: "Golden Parachute (Lead)"
       };
     }
   }, [score]);
@@ -56,13 +59,13 @@ const TerminationScreen: React.FC<TerminationScreenProps> = ({ score, cause, onR
         <div className="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-red-500"></div>
         <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-red-500"></div>
 
-        {/* Header - Shinks on small height */}
+        {/* Header */}
         <div className="text-center border-b border-red-900/50 pb-2 flex-shrink-0">
-          <FileWarning className="w-6 h-6 sm:w-10 sm:h-10 text-red-500 mx-auto mb-1 animate-pulse hidden min-h-[400px]:block" />
-          <h2 className="text-lg sm:text-2xl font-black tracking-[0.2em] text-red-500 uppercase leading-tight">
+          <Recycle className="w-6 h-6 sm:w-10 sm:h-10 text-red-500 mx-auto mb-1 animate-spin" style={{ animationDuration: '10s' }} />
+          <h2 className="text-lg sm:text-2xl font-black tracking-[0.1em] text-red-500 uppercase leading-tight">
             {review.title}
           </h2>
-          <p className="text-[8px] text-red-400/60 uppercase font-mono tracking-tighter">V-Corp Asset Termination Notice</p>
+          <p className="text-[8px] text-red-400 font-mono tracking-widest uppercase">Asset ID: {user?.username || 'GUEST-UNIT-404'}</p>
         </div>
 
         {/* Metrics Section - Compact Grid */}
@@ -72,40 +75,49 @@ const TerminationScreen: React.FC<TerminationScreenProps> = ({ score, cause, onR
                 <span className="text-white font-bold">{Math.floor(score)}m</span>
             </div>
             <div className="flex justify-between items-end border-b border-red-900/10 pb-1">
-                <span className="text-gray-500 text-[8px] uppercase">Grade</span>
+                <span className="text-gray-500 text-[8px] uppercase font-bold">Utility Rating</span>
                 <span className="text-red-500 font-black text-sm">{review.grade}</span>
             </div>
             <div className="col-span-2 pt-1">
-                <span className="text-gray-500 text-[8px] uppercase block">Reason for termination</span>
-                <span className="text-red-400 font-bold uppercase truncate block text-[9px] sm:text-[11px]">{cause}</span>
-                <span className="text-red-500/80 font-mono text-[8px] uppercase tracking-tight block mt-0.5 animate-pulse">
-                  &gt; It's giving skill issue.
+                <span className="text-gray-500 text-[8px] uppercase block font-bold">Point of Discontinuation</span>
+                <span className="text-red-400 font-bold uppercase truncate block text-[10px] sm:text-[11px]">{cause}</span>
+                <span className="text-red-500/80 font-mono text-[8px] uppercase tracking-tight block mt-0.5 italic">
+                  &gt; Better luck in the next life cycle.
                 </span>
             </div>
         </div>
 
-        {/* Evaluation Text - Scrollable if content is too long, or hidden if screen is tiny */}
-        <div className="text-gray-400 text-[10px] sm:text-xs leading-tight italic border-l-2 border-red-900 pl-3 py-1 overflow-y-auto min-h-[40px] flex-grow max-h-[100px] hidden min-h-[300px]:block">
+        {/* Evaluation Text */}
+        <div className="text-gray-400 text-[10px] sm:text-xs leading-tight italic border-l-2 border-red-900 pl-3 py-2 bg-red-950/5 flex-grow">
             "{review.body}"
         </div>
 
-        {/* Footer & Actions - Always visible */}
+        {/* Footer & Actions */}
         <div className="flex flex-col gap-2 flex-shrink-0">
-            <div className="bg-red-950/20 p-2 border border-red-900/30 text-[9px] sm:text-[10px] hidden min-h-[350px]:block">
-                <span className="text-red-500 font-bold block mb-0.5 uppercase tracking-tighter">Severance Package</span>
-                <span className="text-white italic">{review.severance}</span>
+            <div className="bg-red-950/20 p-2 border border-red-900/30 text-[9px] sm:text-[10px] flex justify-between items-center">
+                <div>
+                  <span className="text-red-500 font-bold block mb-0.5 uppercase tracking-tighter">Consolation Prize</span>
+                  <span className="text-white italic">{review.award}</span>
+                </div>
+                {!user && (
+                  <button 
+                    onClick={onLogin}
+                    className="flex items-center gap-1 bg-white/10 hover:bg-white/20 px-2 py-1 rounded text-[8px] uppercase font-bold transition-all text-cyan-400"
+                  >
+                    <LogIn size={10} /> Link ID
+                  </button>
+                )}
             </div>
 
             <button 
                 onClick={onRestart}
-                className="w-full bg-red-600 hover:bg-red-500 active:scale-95 text-black font-black py-3 sm:py-4 px-4 flex items-center justify-center gap-3 transition-all uppercase tracking-[0.15em] text-xs sm:text-sm group relative overflow-hidden"
+                className="w-full bg-red-600 hover:bg-red-500 active:scale-95 text-black font-black py-4 px-4 flex items-center justify-center gap-3 transition-all uppercase tracking-[0.2em] text-xs sm:text-sm group relative overflow-hidden"
                 style={{ 
-                  boxShadow: '0 0 30px rgba(220,38,38,0.6)',
-                  animation: 'bounce 2s infinite'
+                  boxShadow: '0 0 30px rgba(220,38,38,0.4)',
                 }}
             >
                 <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 skew-y-12"></div>
-                <RefreshCw size={16} className="animate-spin" style={{ animationDuration: '4s' }} /> RE-ENTER QUEUE
+                <RefreshCw size={16} className="group-hover:rotate-180 transition-transform duration-500" /> RE-ENTER ROTATION
             </button>
         </div>
       </div>

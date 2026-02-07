@@ -27,6 +27,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
   
   const dimensionsRef = useRef({ width: 800, height: 400, groundY: 320 });
   const [guideVisible, setGuideVisible] = useState(showTutorial);
+  const prevGameState = useRef(gameState);
   
   const scoreRef = useRef(0);
   const speedRef = useRef(INITIAL_SPEED);
@@ -483,7 +484,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
   }, [loop]);
 
   useEffect(() => {
-    if (gameState === GameState.PLAYING || gameState === GameState.MENU) resetGame();
+    if (gameState === GameState.PLAYING && prevGameState.current !== GameState.PAUSED) {
+        resetGame();
+    } else if (gameState === GameState.MENU) {
+        resetGame();
+    }
+    prevGameState.current = gameState;
   }, [gameState]);
 
   return (
@@ -511,6 +517,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
                         </div>
                         <span className="text-yellow-400 font-bold tracking-widest text-lg">SWIPE DOWN</span>
                      </div>
+                </div>
+            </div>
+        )}
+        {gameState === GameState.PAUSED && (
+             <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-[60] backdrop-blur-[2px]">
+                <div className="flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-300">
+                    <h2 className="text-4xl font-black text-white tracking-[0.2em] uppercase italic">System Paused</h2>
+                    <p className="text-cyan-400 font-mono text-xs tracking-widest animate-pulse">Awaiting Interaction to Resume</p>
                 </div>
             </div>
         )}

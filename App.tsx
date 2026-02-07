@@ -3,10 +3,13 @@ import GameCanvas from "./components/GameCanvas";
 import CorporateTicker from "./components/CorporateTicker";
 import TerminationScreen from "./components/TerminationScreen";
 import MainMenu from "./components/MainMenu";
+import QuitModal from "./components/QuitModal";
 import { GameState } from "./types";
 import { COLORS, INITIAL_LIVES } from "./constants";
-import { Smartphone, RotateCw, Zap, Award, Volume2, VolumeX } from "lucide-react";
+import { Smartphone, RotateCw, Zap, Award, Volume2, VolumeX, Pause, Play, LogOut } from "lucide-react";
 import { submitScore } from "./services/leaderboard";
+import { subscribeToAuth, UserProfile } from "./services/auth";
+import AuthModal from "./components/AuthModal";
 
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(GameState.MENU);
@@ -21,18 +24,22 @@ const App: React.FC = () => {
   const [showTutorial, setShowTutorial] = useState(true);
 
   // User State
-  const [username, setUsername] = useState<string | null>(null);
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [showQuitModal, setShowQuitModal] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   // Audio State
   const [isAudioEnabled, setIsAudioEnabled] = useState(false);
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
 
-  // Initialize username from localStorage
+  // Subscribe to Auth Changes
   useEffect(() => {
-    const savedUsername = localStorage.getItem('username');
-    if (savedUsername) {
-      setUsername(savedUsername);
-    }
+    const unsubscribe = subscribeToAuth((userProfile) => {
+      setUser(userProfile);
+      setAuthLoading(false);
+    });
+    return () => unsubscribe();
   }, []);
 
   const toggleAudio = () => {
@@ -63,16 +70,33 @@ const App: React.FC = () => {
     else setDeathStreak(0);
 
     // Submit score to Firebase if user is logged in
-    if (username) {
+    if (user) {
       try {
-        const deviceId = localStorage.getItem('deviceId');
-        if (deviceId) {
-          await submitScore(username, Math.floor(finalScore), deviceId);
-        }
+          await submitScore(user.username, Math.floor(finalScore)); // Updated signature
       } catch (error) {
         console.error('Failed to submit score:', error);
       }
     }
+  };
+
+  const handlePause = () => {
+    if (gameState === GameState.PLAYING) setGameState(GameState.PAUSED);
+    else if (gameState === GameState.PAUSED) setGameState(GameState.PLAYING);
+  };
+
+  const handleQuit = () => {
+    setGameState(GameState.PAUSED);
+    setShowQuitModal(true);
+  };
+
+  const handleConfirmQuit = () => {
+    setShowQuitModal(false);
+    setGameState(GameState.MENU);
+  };
+
+  const handleCancelQuit = () => {
+    setShowQuitModal(false);
+    setGameState(GameState.PLAYING);
   };
 
   const handleStart = () => {
@@ -187,21 +211,43 @@ const App: React.FC = () => {
               : '0 0 15px rgba(250, 204, 21, 0.2), inset 0 0 5px rgba(250, 204, 21, 0.1)',
             transform: isSynergyActive ? 'scale(1.1) translateY(5px)' : 'scale(1)'
           }}>
-          <div className="flex items-center gap-2">
-            {isSynergyActive && (
-              <span className="text-[7px] bg-white text-black px-1 font-black animate-pulse rounded-sm">MC MODE</span>
+          <div className="flex items-center gap-3">
+            {(gameState === GameState.PLAYING || gameState === GameState.PAUSED) && (
+              <div className="flex items-center gap-1 border-r border-gray-700/50 pr-2 mr-1">
+                <button 
+                  onClick={handlePause}
+                  className="p-1 hover:bg-white/10 rounded-sm transition-colors text-gray-400 hover:text-white"
+                  aria-label={gameState === GameState.PAUSED ? "Resume Game" : "Pause Game"}
+                >
+                  {gameState === GameState.PAUSED ? <Play size={12} fill="currentColor" /> : <Pause size={12} fill="currentColor" />}
+                </button>
+                <button 
+                  onClick={handleQuit}
+                  className="p-1 hover:bg-red-500/20 rounded-sm transition-colors text-gray-400 hover:text-red-400"
+                  aria-label="Quit to Menu"
+                >
+                  <LogOut size={12} />
+                </button>
+              </div>
             )}
-            <span className="text-[8px] text-gray-300 font-mono leading-none uppercase tracking-widest">
-              Score
-            </span>
+            <div className="flex flex-col items-end">
+              <div className="flex items-center gap-2 leading-none">
+                {isSynergyActive && (
+                  <span className="text-[7px] bg-white text-black px-1 font-black animate-pulse rounded-sm">MC MODE</span>
+                )}
+                <span className="text-[8px] text-gray-300 font-mono leading-none uppercase tracking-widest">
+                  Score
+                </span>
+              </div>
+              <span className="text-yellow-400 font-bold text-xl md:text-3xl font-mono tabular-nums leading-none mt-1" 
+                style={{ 
+                  textShadow: isSynergyActive ? '0 0 20px #fff' : '0 0 15px rgba(250,204,21,0.5)',
+                  color: isSynergyActive ? '#fff' : '#facc15'
+                }}>
+                {score.toString().padStart(6, "0")}
+              </span>
+            </div>
           </div>
-          <span className="text-yellow-400 font-bold text-xl md:text-3xl font-mono tabular-nums leading-none" 
-            style={{ 
-              textShadow: isSynergyActive ? '0 0 20px #fff' : '0 0 15px rgba(250,204,21,0.5)',
-              color: isSynergyActive ? '#fff' : '#facc15'
-            }}>
-            {score.toString().padStart(6, "0")}
-          </span>
         </div>
       </div>
 
@@ -222,8 +268,9 @@ const App: React.FC = () => {
             onStart={handleStart} 
             isAudioEnabled={isAudioEnabled}
             toggleAudio={toggleAudio}
-            username={username}
-            onUsernameSet={setUsername}
+            user={user}
+            authLoading={authLoading}
+            onLogin={() => setShowAuthModal(true)}
           />
         )}
 
@@ -232,6 +279,23 @@ const App: React.FC = () => {
             score={score}
             cause={deathCause}
             onRestart={() => setGameState(GameState.MENU)}
+            user={user}
+            onLogin={() => setShowAuthModal(true)}
+          />
+        )}
+
+        {showQuitModal && (
+          <QuitModal 
+            onConfirm={handleConfirmQuit}
+            onCancel={handleCancelQuit}
+          />
+        )}
+        
+        {/* Auth Modal Global */}
+        {showAuthModal && (
+          <AuthModal 
+            onSuccess={() => setShowAuthModal(false)}
+            onCancel={() => setShowAuthModal(false)}
           />
         )}
       </div>

@@ -1,21 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { COLORS, MOCK_LEADERBOARD } from '../constants';
 import { Play, ShieldAlert, ChevronUp, ChevronDown, Keyboard, Fingerprint, Award, Volume2, VolumeX, Plane, Bomb, UserX, Gamepad, UserPlus, Loader2 } from 'lucide-react';
-import { getLeaderboard } from '../services/leaderboard';
-import UsernameInput from './UsernameInput';
+import { UserProfile, logout } from '../services/auth';
+// AuthModal moved to App level
 
 interface MainMenuProps {
   onStart: () => void;
   isAudioEnabled: boolean;
   toggleAudio: () => void;
-  username: string | null;
-  onUsernameSet: (username: string) => void;
+  user: UserProfile | null;
+  authLoading: boolean;
+  onLogin: () => void;
 }
 
-const MainMenu: React.FC<MainMenuProps> = ({ onStart, isAudioEnabled, toggleAudio, username, onUsernameSet }) => {
+const MainMenu: React.FC<MainMenuProps> = ({ onStart, isAudioEnabled, toggleAudio, user, authLoading, onLogin }) => {
   const [leaderboard, setLeaderboard] = useState<Array<{ username: string; score: number }>>([]);
   const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState(true);
-  const [showUsernameInput, setShowUsernameInput] = useState(false);
+  // Internal state removed, using parent control
 
   useEffect(() => {
     const fetchLeaderboard = async () => {
@@ -35,10 +36,7 @@ const MainMenu: React.FC<MainMenuProps> = ({ onStart, isAudioEnabled, toggleAudi
     return () => clearInterval(interval);
   }, []);
 
-  const handleUsernameSuccess = (newUsername: string) => {
-    onUsernameSet(newUsername);
-    setShowUsernameInput(false);
-  };
+  /* Removed handleUsernameSuccess, auth listener in App handles state update */
   return (
     <div className="absolute inset-0 z-40 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-2 sm:p-4 overflow-hidden">
       {/* Holographic background effect */}
@@ -165,7 +163,7 @@ const MainMenu: React.FC<MainMenuProps> = ({ onStart, isAudioEnabled, toggleAudi
                           <div className="flex items-center gap-3">
                             <span className="text-gray-500 w-4 font-bold">{i + 1}</span>
                             <span className={`font-bold transition-all group-hover:text-cyan-300 ${
-                              entry.username === username ? 'text-yellow-400' : 'text-gray-300'
+                              entry.username === user?.username ? 'text-yellow-400' : 'text-gray-300'
                             }`}>
                               {entry.username}
                             </span>
@@ -236,20 +234,37 @@ const MainMenu: React.FC<MainMenuProps> = ({ onStart, isAudioEnabled, toggleAudi
                 </button>
 
                 {/* Username Display or Create Button */}
-                {username ? (
-                  <div className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-cyan-950/20 border border-cyan-500/30 rounded-sm">
-                    <UserPlus size={14} className="text-cyan-400" />
-                    <span className="text-cyan-400 font-mono text-xs tracking-wider">
-                      {username}
-                    </span>
+                {user ? (
+                  <div className="flex flex-col gap-2 w-full">
+                    <div className="w-full flex items-center justify-between gap-2 px-4 py-2 bg-cyan-950/20 border border-cyan-500/30 rounded-sm">
+                      <div className="flex items-center gap-2">
+                        <UserPlus size={14} className="text-cyan-400" />
+                        <span className="text-cyan-400 font-mono text-xs tracking-wider">
+                          {user.username}
+                        </span>
+                      </div>
+                      <button 
+                        onClick={logout}
+                        className="text-[10px] text-red-500 hover:text-red-400 uppercase tracking-wider"
+                      >
+                        LOGOUT
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <button 
-                    onClick={() => setShowUsernameInput(true)}
+                    onClick={onLogin}
+                    disabled={authLoading}
                     className="w-full bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-500/50 hover:border-cyan-400 text-cyan-300 font-bold py-2 px-4 flex items-center justify-center gap-2 transition-all uppercase tracking-widest text-xs"
                   >
-                    <UserPlus size={14} />
-                    Create Profile
+                   {authLoading ? (
+                      <Loader2 size={14} className="animate-spin" />
+                   ) : (
+                      <>
+                        <UserPlus size={14} />
+                        IDENTIFY
+                      </>
+                   )}
                   </button>
                 )}
 
@@ -271,13 +286,7 @@ const MainMenu: React.FC<MainMenuProps> = ({ onStart, isAudioEnabled, toggleAudi
           </div>
       </div>
 
-      {/* Username Input Modal */}
-      {showUsernameInput && (
-        <UsernameInput 
-          onSuccess={handleUsernameSuccess}
-          onCancel={() => setShowUsernameInput(false)}
-        />
-      )}
+      {/* Auth Modal moved to App.tsx */}
     </div>
   );
 };

@@ -142,15 +142,12 @@ const App: React.FC = () => {
       {/* Global Audio Element */}
       <audio ref={audioRef} src="/soundtrack.mp3" preload="auto" />
 
-      {gameState === GameState.PLAYING && (
+      {(gameState === GameState.PLAYING || gameState === GameState.GAME_OVER) && (
         <div className="fixed inset-0 z-[100] bg-black flex-col items-center justify-center p-6 text-center hidden portrait:flex lg:hidden">
           <div className="relative mb-4">
             <Smartphone className="w-16 h-16 md:w-24 md:h-24 text-gray-600" />
             <RotateCw
               className="w-8 h-8 md:w-12 md:h-12 text-yellow-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
-              style={{
-                animation: "spin 2s linear infinite",
-              }}
             />
           </div>
           <h2 className="text-2xl md:text-3xl font-black text-yellow-400 mb-2 tracking-widest uppercase">

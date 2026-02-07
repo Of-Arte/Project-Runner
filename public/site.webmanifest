@@ -1,6 +1,13 @@
 {
-  "name": "V Corp",
+  "name": "V Corp Runner",
   "short_name": "V Corp",
+  "description": "An endless runner game set in a dystopian corporate landscape.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "theme_color": "#050505",
+  "background_color": "#050505",
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",
@@ -13,9 +20,18 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    },
+    {
+      "src": "/favicon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
     }
-  ],
-  "theme_color": "#000000",
-  "background_color": "#ffffff",
-  "display": "standalone"
+  ]
 }

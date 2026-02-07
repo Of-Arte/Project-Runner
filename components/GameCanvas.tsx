@@ -42,6 +42,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
   const totalCreditsCollectedRef = useRef(0);
   const sessionCreditsRef = useRef(0);
   
+  // Input State Refs
+  const isJumpingInputActive = useRef(false);
+  const isDuckingInputActive = useRef(false);
+
   const playerRef = useRef<PlayerState>({
     y: 0, 
     vy: 0,
@@ -64,8 +68,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
     const handleResize = () => {
         if (containerRef.current && canvasRef.current) {
             const { offsetWidth, offsetHeight } = containerRef.current;
-            canvasRef.current.width = offsetWidth;
-            canvasRef.current.height = offsetHeight;
+            const dpr = window.devicePixelRatio || 1;
+            canvasRef.current.width = offsetWidth * dpr;
+            canvasRef.current.height = offsetHeight * dpr;
+            canvasRef.current.style.width = `${offsetWidth}px`;
+            canvasRef.current.style.height = `${offsetHeight}px`;
+            const ctx = canvasRef.current.getContext('2d');
+            if (ctx) ctx.scale(dpr, dpr);
             const newGroundY = offsetHeight - 80;
             dimensionsRef.current = { width: offsetWidth, height: offsetHeight, groundY: newGroundY };
             if (playerRef.current.isGrounded) playerRef.current.y = newGroundY - PLAYER_HEIGHT_STANDING;
@@ -124,12 +133,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-        if (e.code === 'Space' || e.code === 'ArrowUp') startJump();
-        if (e.code === 'ArrowDown') startDuck();
+        if (e.code === 'Space' || e.code === 'ArrowUp') isJumpingInputActive.current = true;
+        if (e.code === 'ArrowDown') isDuckingInputActive.current = true;
     };
     const onKeyUp = (e: KeyboardEvent) => {
-        if (e.code === 'Space' || e.code === 'ArrowUp') endJump();
-        if (e.code === 'ArrowDown') endDuck();
+        if (e.code === 'Space' || e.code === 'ArrowUp') { isJumpingInputActive.current = false; endJump(); }
+        if (e.code === 'ArrowDown') { isDuckingInputActive.current = false; endDuck(); }
     };
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
@@ -139,16 +148,33 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
     };
   }, [startJump, endJump, startDuck, endDuck]);
 
-  const handleTouchStart = (e: React.TouchEvent) => touchStartRef.current = { y: e.touches[0].clientY };
+  const handleTouchStart = (e: React.TouchEvent) => {
+      touchStartRef.current = { y: e.touches[0].clientY };
+      isJumpingInputActive.current = true;
+      isDuckingInputActive.current = false;
+  };
   const handleTouchMove = (e: React.TouchEvent) => {
       if (!touchStartRef.current) return;
       const diffY = e.touches[0].clientY - touchStartRef.current.y;
-      if (Math.abs(diffY) > SWIPE_THRESHOLD) {
-          if (diffY < 0) { startJump(); if (playerRef.current.isDucking) playerRef.current.isDucking = false; }
-          else startDuck();
-      } 
+      if (diffY > SWIPE_THRESHOLD) {
+          isDuckingInputActive.current = true;
+          isJumpingInputActive.current = false;
+      } else {
+          isJumpingInputActive.current = true;
+          isDuckingInputActive.current = false;
+      }
   };
-  const handleTouchEnd = () => { touchStartRef.current = null; endJump(); endDuck(); };
+  const handleTouchEnd = () => { 
+      touchStartRef.current = null; 
+      isJumpingInputActive.current = false; 
+      isDuckingInputActive.current = false; 
+      endJump(); 
+      endDuck(); 
+  };
+  
+  const handleMouseDown = () => { isJumpingInputActive.current = true; };
+  const handleMouseUp = () => { isJumpingInputActive.current = false; endJump(); };
+  const handleMouseLeave = () => { isJumpingInputActive.current = false; endJump(); };
 
   const createParticles = (x: number, y: number, count: number, color: string) => {
     for (let i = 0; i < count; i++) {
@@ -208,6 +234,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
     if (gameState !== GameState.PLAYING) return;
     const { width, height, groundY } = dimensionsRef.current;
     if (height > width && width < 1024) return;
+
+    // Input Handling
+    if (isJumpingInputActive.current && playerRef.current.isGrounded) startJump();
+    if (isDuckingInputActive.current && !playerRef.current.isDucking) startDuck();
 
     const synergyMultiplier = synergyActiveFramesRef.current > 0 ? 1.5 : 1;
     speedRef.current = Math.min(MAX_SPEED, speedRef.current + SPEED_INCREMENT);
@@ -458,7 +488,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
 
   return (
     <div ref={containerRef} className="w-full h-full relative bg-black touch-none">
-        <canvas ref={canvasRef} className="block w-full h-full outline-none" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} />
+        <canvas ref={canvasRef} className="block w-full h-full outline-none" 
+            onTouchStart={handleTouchStart} 
+            onTouchMove={handleTouchMove} 
+            onTouchEnd={handleTouchEnd}
+            onMouseDown={handleMouseDown}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseLeave}
+        />
         {guideVisible && gameState === GameState.PLAYING && (
             <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center bg-black/40 z-50 animate-pulse">
                 <div className="flex gap-16">
@@ -466,19 +503,19 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
                         <div className="w-16 h-24 border-2 border-dashed border-cyan-400 rounded-full flex flex-col items-center pt-2 bg-cyan-900/20">
                             <div className="w-12 h-12 bg-cyan-400/50 rounded-full animate-bounce mt-auto mb-2"></div>
                         </div>
-                        <span className="text-cyan-400 font-bold tracking-widest text-lg">JUMP (UP)</span>
+                        <span className="text-cyan-400 font-bold tracking-widest text-lg">TAP TO JUMP</span>
                      </div>
                      <div className="flex flex-col items-center gap-2">
                         <div className="w-16 h-24 border-2 border-dashed border-yellow-400 rounded-full flex flex-col items-center pb-2 bg-yellow-900/20">
                             <div className="w-12 h-12 bg-yellow-400/50 rounded-full animate-bounce mt-2"></div>
                         </div>
-                        <span className="text-yellow-400 font-bold tracking-widest text-lg">DUCK (DOWN)</span>
+                        <span className="text-yellow-400 font-bold tracking-widest text-lg">SWIPE DOWN</span>
                      </div>
                 </div>
             </div>
         )}
         {gameState === GameState.PLAYING && (
-             <div className="absolute top-4 right-4 text-right pointer-events-none">
+             <div className="absolute top-24 right-4 text-right pointer-events-none">
                 <div className="text-[8px] text-gray-500 font-mono tracking-widest uppercase">Dept. Zone</div>
                 <div className="text-xl font-bold font-mono animate-pulse" style={{ color: DEPARTMENTS[stageRef.current].primary }}>
                     {DEPARTMENTS[stageRef.current].name}

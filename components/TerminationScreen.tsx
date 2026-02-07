@@ -107,9 +107,6 @@ const TerminationScreen: React.FC<TerminationScreenProps> = ({ score, cause, onR
                 <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 skew-y-12"></div>
                 <RefreshCw size={16} className="animate-spin" style={{ animationDuration: '4s' }} /> RE-ENTER QUEUE
             </button>
-            <p className="text-[8px] text-gray-700 font-mono text-center uppercase tracking-tighter">
-               System Reboot Required
-            </p>
         </div>
       </div>
     </div>

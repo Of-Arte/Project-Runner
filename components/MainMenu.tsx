@@ -262,7 +262,7 @@ const MainMenu: React.FC<MainMenuProps> = ({ onStart, isAudioEnabled, toggleAudi
                    ) : (
                       <>
                         <UserPlus size={14} />
-                        IDENTIFY
+                        Login
                       </>
                    )}
                   </button>

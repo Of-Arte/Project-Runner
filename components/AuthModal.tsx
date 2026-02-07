@@ -79,9 +79,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ onSuccess, onCancel }) => {
 
           {/* Header */}
           <div className="text-center mb-6">
-            <Fingerprint className="w-12 h-12 text-cyan-400 mx-auto mb-3 animate-pulse" />
             <h2 className="text-2xl font-black tracking-[0.2em] text-white uppercase glitch-text">
-              {mode === 'LOGIN' ? 'Resume Session' : 'Initialize Identity'}
+              {mode === 'LOGIN' ? 'Resume Session' : 'Sign Up'}
             </h2>
           </div>
 

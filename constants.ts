@@ -96,7 +96,7 @@ export const BIOMES = [
       particlePrimary: COLORS.NEON_YELLOW,
       particleSecondary: '#fbbf24' // Amber
     },
-    atmosphere: { gridType: 'hex', particleDensity: 1.2 }
+    atmosphere: { gridType: 'classic', particleDensity: 1.2 }
   },
   {
     name: "MANAGEMENT",
@@ -110,19 +110,19 @@ export const BIOMES = [
       particlePrimary: COLORS.NEON_PURPLE,
       particleSecondary: '#e879f9'
     },
-    atmosphere: { gridType: 'hex', particleDensity: 1.5 }
+    atmosphere: { gridType: 'classic', particleDensity: 1.5 }
   },
   {
     name: "THE MAINFRAME",
-    threshold: 8000,
+    threshold: 8000, 
     palette: {
-      background: '#000500', // Deep Green/Black
-      grid: 'rgba(74, 222, 128, 0.15)', // Green
-      gridHighlight: 'rgba(74, 222, 128, 0.5)',
-      text: COLORS.NEON_GREEN,
-      obstacle: '#fff', // White (Glitch)
-      particlePrimary: COLORS.NEON_GREEN,
-      particleSecondary: '#fff'
+      background: '#0a0a0a', // Deep Grey
+      grid: 'rgba(255, 255, 255, 0.1)', 
+      gridHighlight: '#00ff00', // Matrix Green
+      text: '#00ff00',
+      obstacle: '#ffffff',
+      particlePrimary: '#00ff00',
+      particleSecondary: '#ffffff'
     },
     atmosphere: { gridType: 'digital', particleDensity: 2.0 }
   }
@@ -130,13 +130,57 @@ export const BIOMES = [
 
 export const DEPARTMENTS = BIOMES; // Legacy alias for compatibility
 
+// Boss Configuration
+export const BOSS_CONFIG = {
+  TRIGGER_SCORE: 5000,
+  MAX_HEALTH: 2,         // Starting health (2 hits)
+  BASE_ATTACKS: 3,       // Number of attacks before leaving
+  ATTACK_COOLDOWN: 180, // 3 seconds between attacks
+  BEAM_DURATION: 40,    // Reduced from 60 (0.66s)
+  CHARGE_DURATION: 60,  // 1 second warning duration
+  DIMENSIONS: {
+    PORTRAIT: { width: 180, height: 180 },
+    LANDSCAPE: { width: 140, height: 140 }
+  }
+};
+
+// Rare Department-Specific Obstacles Configuration
+export const RARE_OBSTACLE_CONFIG = {
+  GLASS_CEILING: {
+    spawnChance: 0.10,      // 10% chance in Management
+    descendAt: 0.5,         // Descend at 50% screen width (landscape) or height (portrait)
+    descendSpeed: 8,        // Pixels per frame
+    biomes: [2],            // Management
+    width: 120,
+    initialHeight: 80,
+    duckedHeight: 40
+  },
+  DATA_CORRUPTER: {
+    spawnChance: 0.08,      // 8% chance in Mainframe
+    invertDuration: 180,    // 3 seconds at 60fps
+    biomes: [3],            // Mainframe
+    size: 50,
+    pulseSpeed: 5           // Animation speed
+  }
+} as const;
+
+export const POWERUP_CONFIG = {
+  SHIELD: {
+    color: '#34d39e', // NEON_BUFFER_GREEN
+    label: 'FIREWALL BUFFER'
+  },
+  REFLECT: {
+    color: '#38bdf8', // NEON_REFLECT_BLUE
+    duration: 120,    // 2 seconds at 60fps
+    label: 'REFLECTIVE BURST'
+  },
+  SPAWN_CHANCE: 0.08,    // 8% chance on credit spawn check
+} as const;
+
 export const MOCK_LEADERBOARD = [
-  { username: 'NEO_CEO', score: 999999 },
-  { username: 'CORP_SLAYER', score: 50000 },
-  { username: 'WAGE_CAGE', score: 25000 },
-  { username: 'LADDER_CLIMBER', score: 10000 },
-  { username: 'INTERN_01', score: 5000 },
-  { username: 'MAIL_ROOM', score: 1000 },
+  { username: 'V_CHAIRMAN', score: 85200 },
+  { username: 'SENIOR_AUDITOR', score: 42150 },
+  { username: 'QUANT_RUNNER', score: 15800 },
 ];
 
 // Portrait Mode Constants

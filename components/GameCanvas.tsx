@@ -1,18 +1,19 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import ControlsGuidance from './ControlsGuidance';
-import { GameState, GameObject, ObstacleType, PlayerState, Particle, Star, Credit, Laser, FloatingText } from '../types';
+import { GameState, GameObject, ObstacleType, PowerupType, PlayerState, Particle, Star, Credit, Laser, FloatingText, BossState, BossPhase } from '../types';
 import {
   PLAYER_X, PLAYER_WIDTH, PLAYER_HEIGHT_STANDING, PLAYER_HEIGHT_DUCKING,
-  COLORS, DEPARTMENTS, INITIAL_LIVES, INVINCIBILITY_FRAMES,
+  COLORS, INITIAL_LIVES, INVINCIBILITY_FRAMES,
   SYNERGY_DURATION, SYNERGY_CREDIT_VALUE, LIFE_RECOVERY_THRESHOLD,
   PORTRAIT_PLAYER_Y_OFFSET, PORTRAIT_PLAYER_SIZE, PORTRAIT_LANE_COUNT, PORTRAIT_LANE_WIDTH_PERCENT,
   CREDIT_SCORE_VALUE, LANDSCAPE_CONFIG, PORTRAIT_CONFIG,
   LASER_COOLDOWN_FRAMES, LASER_COOLDOWN_REDUCTION,
-  BIOMES // Added BIOMES import
+  BIOMES, BOSS_CONFIG, RARE_OBSTACLE_CONFIG, POWERUP_CONFIG
 } from '../constants';
 import { generatePsychologicalTriggers } from '../services/geminiService';
 import { soundService } from '../services/soundEffects';
 import { useDeviceOrientation } from '../hooks/useDeviceOrientation';
+import { useDeviceType } from '../hooks/useDeviceType';
 
 interface GameCanvasProps {
   gameState: GameState;
@@ -25,16 +26,7 @@ interface GameCanvasProps {
   showTutorial: boolean;
 }
 
-// Helper for color interpolation
 const lerpColor = (start: string, end: string, t: number): string => {
-  // Simple hex to rgb lerp
-  let a = start.startsWith('#') ? start : '#000000';
-  let b = end.startsWith('#') ? end : '#000000';
-
-  // Handle rgba if needed, but for now assuming hex or simple colors. 
-  // If inputs are rgba, we might need a better parser. 
-  // For safety with existing constants, let's implement a robust one or use a library? NO library.
-  // quick hex parser:
   const parse = (c: string) => {
     if (c.startsWith('rgba')) {
       const parts = c.match(/[\d.]+/g);
@@ -44,32 +36,19 @@ const lerpColor = (start: string, end: string, t: number): string => {
       const hex = c.slice(1);
       const bigint = parseInt(hex, 16);
       if (hex.length === 3) {
-        return [
-          ((bigint >> 8) & 0xF) * 17,
-          ((bigint >> 4) & 0xF) * 17,
-          (bigint & 0xF) * 17,
-          1
-        ];
+        return [((bigint >> 8) & 0xF) * 17, ((bigint >> 4) & 0xF) * 17, (bigint & 0xF) * 17, 1];
       }
-      return [
-        (bigint >> 16) & 255,
-        (bigint >> 8) & 255,
-        bigint & 255,
-        1
-      ];
+      return [(bigint >> 16) & 255, (bigint >> 8) & 255, bigint & 255, 1];
     }
     return [0, 0, 0, 1];
   };
-
-  const c1 = parse(a);
-  const c2 = parse(b);
-
+  const c1 = parse(start);
+  const c2 = parse(end);
   const r = Math.round(c1[0] + (c2[0] - c1[0]) * t);
   const g = Math.round(c1[1] + (c2[1] - c1[1]) * t);
-  const _b = Math.round(c1[2] + (c2[2] - c1[2]) * t); // _b to avoid blocking scope variable 'b'
+  const b = Math.round(c1[2] + (c2[2] - c1[2]) * t);
   const alpha = (c1[3] + (c2[3] - c1[3]) * t);
-
-  return `rgba(${r}, ${g}, ${_b}, ${alpha})`;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
 const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setScore, setLives, setSynergy, setIsSynergyActive, setDeathCause, showTutorial }) => {
@@ -81,10 +60,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
 
   const dimensionsRef = useRef({ width: 800, height: 400, groundY: 320 });
   const [guideVisible, setGuideVisible] = useState(showTutorial);
+  const [bossHint, setBossHint] = useState<string>('');
+  const { isMobile } = useDeviceType();
+  const guideTimerRef = useRef<number | null>(null);
   const prevGameState = useRef(gameState);
 
   const scoreRef = useRef(0);
-  const speedRef = useRef(isPortrait ? PORTRAIT_CONFIG.baseSpeed : LANDSCAPE_CONFIG.baseSpeed);
+  const speedRef = useRef(config.baseSpeed);
   const framesRef = useRef(0);
   const lastTimeRef = useRef<number>(0);
   const animTimeRef = useRef<number>(0);
@@ -93,215 +75,89 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
   const livesRef = useRef(INITIAL_LIVES);
   const invincibleFramesRef = useRef(0);
   const subliminalTimerRef = useRef(0);
-  const lastMilestoneLevelRef = useRef(0);
+  const triggersRef = useRef<string[]>(["OBEY", "WORK", "CONSUME", "PRODUCE", "COMPLY", "ASCEND"]);
 
   // Biome State
   const currentBiomeIndexRef = useRef(0);
   const nextBiomeIndexRef = useRef(0);
-  const biomeTransitionRef = useRef(0); // 0.0 to 1.0
+  const biomeTransitionRef = useRef(0);
 
   // Synergy System Refs
   const synergyMeterRef = useRef(0);
   const synergyActiveFramesRef = useRef(0);
-  const totalCreditsCollectedRef = useRef(0);
-  const sessionCreditsRef = useRef(0);
 
   // Laser Cooldown
   const laserCooldownRef = useRef(0);
-  const creditsSinceLastReductionRef = useRef(0);
 
-  // Input State Refs
-  const isJumpingInputActive = useRef(false);
-  const isDuckingInputActive = useRef(false);
+  // Boss State
+  const bossRef = useRef<BossState | null>(null);
+  const nextBossTriggerScoreRef = useRef(BOSS_CONFIG.TRIGGER_SCORE);
+  const bossEncounterCountRef = useRef(0);
+
+  // Shield State
+  const hasShieldRef = useRef(false);
+
+  // Effect States
+  const controlsInvertedFramesRef = useRef(0);
+  const activeEffectFramesRef = useRef(0);
+  const activeEffectTypeRef = useRef<PowerupType | null>(null);
+
+  const floatingTextsRef = useRef<FloatingText[]>([]);
 
   const playerRef = useRef<PlayerState>({
-    y: 0,
-    vy: 0,
+    y: 0, vy: 0,
     isDucking: false,
     isGrounded: true,
     lane: 1,
     laneX: 0,
-    altitude: 0
+    altitude: 0,
+    hasShield: false,
+    activeEffectType: null,
+    activeEffectFrames: 0
   });
 
-  // Portrait Mode Refs
   const laneRef = useRef(1);
-  const laneXRef = useRef(0);
-  const altitudeRef = useRef(0);
-  const portraitSpeedRef = useRef(PORTRAIT_CONFIG.baseSpeed);
-
   const obstaclesRef = useRef<GameObject[]>([]);
   const creditsRef = useRef<Credit[]>([]);
   const lasersRef = useRef<Laser[]>([]);
   const particlesRef = useRef<Particle[]>([]);
   const starsRef = useRef<Star[]>([]);
-  const floatingTextsRef = useRef<FloatingText[]>([]);
-  const lastLaneXRef = useRef(0);
+  const lastMilestoneLevelRef = useRef(0);
 
-  const touchStartRef = useRef<{ y: number } | null>(null);
+  const touchStartRef = useRef<{ y: number, x: number } | null>(null);
+  const isDraggingRef = useRef(false);
+  const lastTapTimeRef = useRef<number>(0);
   const SWIPE_THRESHOLD = 30;
 
-  const triggersRef = useRef<string[]>(["OBEY", "WORK", "CONSUME"]);
   const activeSubliminalRef = useRef<{ text: string, opacity: number, x: number, y: number, scale: number } | null>(null);
-  const isSwipeActionActive = useRef(false);
-  const lastTapTimeRef = useRef(0);
 
+  // --- Resize Handling ---
   useEffect(() => {
     const handleResize = () => {
-      if (containerRef.current && canvasRef.current) {
-        const { offsetWidth, offsetHeight } = containerRef.current;
-        const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        canvasRef.current.width = offsetWidth * dpr;
-        canvasRef.current.height = offsetHeight * dpr;
-        canvasRef.current.style.width = `${offsetWidth}px`;
-        canvasRef.current.style.height = `${offsetHeight}px`;
-        const ctx = canvasRef.current.getContext('2d');
-        if (ctx) ctx.scale(dpr, dpr);
-        const newGroundY = offsetHeight - 80;
-        dimensionsRef.current = { width: offsetWidth, height: offsetHeight, groundY: newGroundY };
-        if (playerRef.current.isGrounded) playerRef.current.y = newGroundY - PLAYER_HEIGHT_STANDING;
-        if (starsRef.current.length === 0) {
-          const stars: Star[] = [];
-          for (let i = 0; i < 150; i++) {
-            stars.push({ x: Math.random() * offsetWidth, y: Math.random() * offsetHeight, size: Math.random() * 2, speed: 0.1 + Math.random() * 0.8, opacity: 0.2 + Math.random() * 0.8 });
-          }
-          starsRef.current = stars;
-        }
+      if (!containerRef.current || !canvasRef.current) return;
+      const { width, height } = containerRef.current.getBoundingClientRect();
+      canvasRef.current.width = width;
+      canvasRef.current.height = height;
+      dimensionsRef.current = {
+        width,
+        height,
+        groundY: isPortrait ? height - 50 : height - 80
+      };
+      // Re-center player on resize
+      if (isPortrait) {
+        laneRef.current = 1;
+        playerRef.current.laneX = width / 2;
+      } else {
+        playerRef.current.y = dimensionsRef.current.groundY - PLAYER_HEIGHT_STANDING;
       }
     };
+
     window.addEventListener('resize', handleResize);
     handleResize();
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  useEffect(() => {
-    generatePsychologicalTriggers().then(words => {
-      if (words && words.length > 0) triggersRef.current = words;
-    });
-  }, []);
-
-  useEffect(() => {
-    setGuideVisible(showTutorial);
-  }, [showTutorial, gameState]);
-
-  useEffect(() => {
-    speedRef.current = config.baseSpeed;
-    lastMilestoneLevelRef.current = 0;
   }, [isPortrait]);
 
-  const startJump = useCallback(() => {
-    if (gameState !== GameState.PLAYING) return;
-    setGuideVisible(false);
-    if (playerRef.current.isGrounded) {
-      playerRef.current.vy = config.jumpForce;
-      playerRef.current.isGrounded = false;
-      createParticles(PLAYER_X + PLAYER_WIDTH / 2, playerRef.current.y + PLAYER_HEIGHT_STANDING, 8, COLORS.NEON_BLUE);
-      soundService.playJump();
-    }
-  }, [gameState]);
-
-  const endJump = useCallback(() => {
-    if (gameState !== GameState.PLAYING) return;
-    if (!isPortrait && !playerRef.current.isGrounded && playerRef.current.vy < -5) playerRef.current.vy = playerRef.current.vy * 0.4;
-  }, [gameState, isPortrait]);
-
-  const startDuck = useCallback(() => {
-    if (gameState !== GameState.PLAYING) return;
-    if (!playerRef.current.isDucking) soundService.playDuck();
-    setGuideVisible(false);
-    playerRef.current.isDucking = true;
-    if (!playerRef.current.isGrounded) playerRef.current.vy += 10;
-  }, [gameState]);
-
-  const endDuck = useCallback(() => {
-    if (gameState !== GameState.PLAYING) return;
-    playerRef.current.isDucking = false;
-  }, [gameState]);
-
-  const moveLeft = useCallback(() => {
-    if (gameState !== GameState.PLAYING) return;
-    setGuideVisible(false);
-    if (laneRef.current > 0) laneRef.current--;
-  }, [gameState]);
-
-  const moveRight = useCallback(() => {
-    if (gameState !== GameState.PLAYING) return;
-    setGuideVisible(false);
-    if (laneRef.current < PORTRAIT_LANE_COUNT - 1) laneRef.current++;
-  }, [gameState]);
-
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space' || e.code === 'ArrowUp') isJumpingInputActive.current = true;
-      if (e.code === 'ArrowDown') isDuckingInputActive.current = true;
-    };
-    const onKeyUp = (e: KeyboardEvent) => {
-      if (e.code === 'Space' || e.code === 'ArrowUp') { isJumpingInputActive.current = false; endJump(); }
-      if (e.code === 'ArrowDown') { isDuckingInputActive.current = false; endDuck(); }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
-    };
-  }, [startJump, endJump, startDuck, endDuck]);
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartRef.current = { y: e.touches[0].clientY };
-    isSwipeActionActive.current = false;
-
-    if (isPortrait) {
-      const now = Date.now();
-      if (now - lastTapTimeRef.current < 300) {
-        // Double Tap Detected
-        console.log("Double Tap Laser Triggered!");
-        fireLaser();
-        lastTapTimeRef.current = 0; // Reset to prevent triple-tap firing
-        return;
-      }
-      lastTapTimeRef.current = now;
-
-      const { width } = dimensionsRef.current;
-      const touchX = e.touches[0].clientX;
-      if (touchX < width / 2) moveLeft();
-      else moveRight();
-    } else {
-      isJumpingInputActive.current = true;
-      isDuckingInputActive.current = false;
-    }
-  };
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!touchStartRef.current) return;
-    const diffY = e.touches[0].clientY - touchStartRef.current.y;
-
-    if (isPortrait) {
-      if (diffY < -SWIPE_THRESHOLD) { // Swipe Up -> Laser REMOVED, now Double Tap
-        // Double tap handled in touchStart, swipe up does nothing or maybe shield later?
-      } else if (diffY > SWIPE_THRESHOLD) { // Swipe Down -> Duck
-        startDuck();
-      }
-    } else {
-      if (diffY > SWIPE_THRESHOLD) {
-        isDuckingInputActive.current = true;
-        isJumpingInputActive.current = false;
-      } else {
-        isJumpingInputActive.current = true;
-        isDuckingInputActive.current = false;
-      }
-    }
-  };
-  const handleTouchEnd = () => {
-    touchStartRef.current = null;
-    isJumpingInputActive.current = false;
-    isDuckingInputActive.current = false;
-    endJump();
-    endDuck();
-  };
-
-  const handleMouseDown = () => { isJumpingInputActive.current = true; };
-  const handleMouseUp = () => { isJumpingInputActive.current = false; endJump(); };
-  const handleMouseLeave = () => { isJumpingInputActive.current = false; endJump(); };
+  // --- Utility Functions ---
 
   const createParticles = (x: number, y: number, count: number, color: string) => {
     for (let i = 0; i < count; i++) {
@@ -313,1063 +169,875 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
     floatingTextsRef.current.push({ x, y, text, color, life: 1.0, vy: -2, fontSize });
   };
 
-  const fireLaser = useCallback(() => {
-    if (gameState !== GameState.PLAYING) return;
-    setGuideVisible(false);
+  const handleCollision = useCallback((finalScore: number, cause: string) => {
+    if (invincibleFramesRef.current > 0) return;
+    if (activeEffectTypeRef.current === PowerupType.REFLECT) return;
 
-    // Cooldown Check
-    if (laserCooldownRef.current > 0) return;
-
-    soundService.playLaser();
-
-    // Set Cooldown
-    laserCooldownRef.current = LASER_COOLDOWN_FRAMES;
-
-    // Instant Beam - ALL LANES
-    for (let l = 0; l < PORTRAIT_LANE_COUNT; l++) {
-      lasersRef.current.push({
-        id: Math.random().toString(36),
-        lane: l,
-        life: 15,
-        maxLife: 15
-      });
+    if (hasShieldRef.current) {
+      hasShieldRef.current = false;
+      playerRef.current.hasShield = false;
+      invincibleFramesRef.current = 60;
+      soundService.playCollision(ObstacleType.DRONE_LOW);
+      createFloatingText(playerRef.current.laneX || dimensionsRef.current.width / 2, playerRef.current.y, "SHIELD BROKEN", COLORS.NEON_CYAN, 24);
+      shakeRef.current = 15;
+      return;
     }
 
-    // Instant Collision Check (Hitscan) - ALL LANES
-    // Destroy all obstacles in ANY lane (or valid lanes)
-    let hitCount = 0;
+    if (livesRef.current > 1) {
+      livesRef.current--;
+      setLives(livesRef.current);
+      invincibleFramesRef.current = INVINCIBILITY_FRAMES;
+      soundService.playCollision(ObstacleType.DRONE_LOW);
+      shakeRef.current = 20;
+      createParticles(PLAYER_X, playerRef.current.y, 10, COLORS.NEON_RED);
+    } else {
+      setGameState(GameState.GAME_OVER);
+      setDeathCause(Math.floor(scoreRef.current), cause);
+    }
+  }, [setLives, setGameState, setDeathCause, soundService]);
+
+  const damageBoss = useCallback(() => {
+    if (!bossRef.current || bossRef.current.phase === BossPhase.DEFEATED || bossRef.current.phase === BossPhase.ENTERING) return;
+    bossRef.current.health--;
+    bossRef.current.phase = BossPhase.TAKING_DAMAGE;
+    createParticles(bossRef.current.x, bossRef.current.y, 30, COLORS.NEON_RED);
+    soundService.playCollision(ObstacleType.DRONE_LOW);
+    shakeRef.current += 10;
+    if (bossRef.current.health <= 0) {
+      bossRef.current.phase = BossPhase.DEFEATED;
+      createFloatingText(bossRef.current.x, bossRef.current.y, "THREAT NEUTRALIZED", COLORS.NEON_GREEN, 40);
+      scoreRef.current += 10000;
+      createParticles(bossRef.current.x, bossRef.current.y, 100, COLORS.NEON_GREEN);
+      soundService.playSynergyStart();
+    }
+  }, [soundService]);
+
+  const fireLaser = useCallback(() => {
+    if (gameState !== GameState.PLAYING || laserCooldownRef.current > 0) return;
+    setGuideVisible(false);
+    setBossHint('');
+    soundService.playLaser();
+    laserCooldownRef.current = LASER_COOLDOWN_FRAMES;
+    if (bossRef.current && bossRef.current.phase !== BossPhase.DEFEATED && bossRef.current.phase !== BossPhase.ENTERING) damageBoss();
+
+    for (let l = 0; l < PORTRAIT_LANE_COUNT; l++) {
+      lasersRef.current.push({ id: Math.random().toString(36), lane: l, life: 15, maxLife: 15 });
+    }
+
     obstaclesRef.current.forEach(obs => {
       if (obs.shattered || obs.passed) return;
-
-      // Hit everything in portrait logic since we blast all lanes
-      // Technically we should check if it's within lane bounds if we want to be pedantic,
-      // but "zap all 3 lanes" implies screen wipe for obstacles in those lanes.
       obs.shattered = true;
       createParticles(obs.x + obs.width / 2, obs.y + obs.height / 2, 15, COLORS.NEON_CYAN);
       shakeRef.current = 5;
-      hitCount++;
     });
+  }, [gameState, damageBoss, soundService]);
 
-    if (hitCount > 0) {
-      soundService.playCollision(ObstacleType.DRONE_LOW);
+  const spawnBoss = useCallback(() => {
+    const { width, height } = dimensionsRef.current;
+    activeSubliminalRef.current = { text: "AUDIT IN PROGRESS", opacity: 1, x: width / 2, y: height / 2, scale: 1.5 };
+    shakeRef.current = 30;
+    const bossDim = isPortrait ? BOSS_CONFIG.DIMENSIONS.PORTRAIT : BOSS_CONFIG.DIMENSIONS.LANDSCAPE;
+
+    const encounterCount = bossEncounterCountRef.current;
+    bossEncounterCountRef.current++;
+    nextBossTriggerScoreRef.current += 10000; // Next boss 10k points later
+
+    bossRef.current = {
+      x: width / 2, y: -200,
+      width: bossDim.width, height: bossDim.height,
+      health: BOSS_CONFIG.MAX_HEALTH + encounterCount,
+      maxHealth: BOSS_CONFIG.MAX_HEALTH + encounterCount,
+      phase: BossPhase.ENTERING, attackTimer: 120, targetLane: 0, attacksMade: 0,
+      beamChargeLevel: 0, frame: 0, attacksPerformed: 0, maxAttacks: BOSS_CONFIG.BASE_ATTACKS + encounterCount
+    };
+
+    if (encounterCount === 0) {
+      setBossHint(isMobile ? "DOUBLE TAP TO FIRE LASER" : "PRESS SPACE TO FIRE LASER");
     }
 
-  }, [gameState]);
+    soundService.playSynergyStart();
+  }, [isPortrait, soundService, isMobile]);
 
-  const spawnObstacle = () => {
-    const { width, groundY, height } = dimensionsRef.current;
-
-    let type = ObstacleType.DRONE_LOW;
-    let x = 0;
-    let y = 0;
-    let w = 40;
-    let h = 40;
-
+  const spawnPowerup = () => {
+    const { width, groundY } = dimensionsRef.current;
+    const type = Math.random() < 0.6 ? PowerupType.SHIELD : PowerupType.REFLECT;
     if (isPortrait) {
-      // Portrait Spawning Logic
-      const typeRoll = Math.random();
-
-      // In portrait, types mean:
-      // DRONE_LOW = Ground Obstacle
-      // DRONE_HIGH = Aerial Obstacle (fly over head if ducking? or simple fly over?)
-      // For top down, maybe "High" means it obscures vision or you must duck to go under a beam?
-
-      const isSynergy = synergyActiveFramesRef.current > 0;
-      if (typeRoll > (1 - (isSynergy ? config.lifePackSynergyChance : config.lifePackBaseChance))) type = ObstacleType.LIFE_PACK;
-      else if (typeRoll > 0.7) type = ObstacleType.HOVER_MINE;
-      else if (typeRoll > 0.4) type = ObstacleType.DRONE_HIGH;
-      else type = ObstacleType.DRONE_LOW;
-
       const lane = Math.floor(Math.random() * PORTRAIT_LANE_COUNT);
       const laneWidth = width * (PORTRAIT_LANE_WIDTH_PERCENT / 100);
-      x = (lane * laneWidth) + (laneWidth / 2) - (PORTRAIT_PLAYER_SIZE / 2);
-      y = -100; // Start above screen
-      w = PORTRAIT_PLAYER_SIZE;
-      h = PORTRAIT_PLAYER_SIZE;
-
-      obstaclesRef.current.push({
-        x, y, width: w, height: h, type, passed: false, lane
-      } as any);
-
-      // Portrait Credits - Smart Spawning
-      if (Math.random() < config.creditSpawnChance) {
-        const clusterCount = 2 + Math.floor(Math.random() * 2);
-        // Spawn in DIFFERENT lane to avoid stacking behind obstacles
-        let creditLane = lane;
-        // Try to find a safe adjacent lane
-        if (lane === 0) creditLane = 1;
-        else if (lane === PORTRAIT_LANE_COUNT - 1) creditLane = PORTRAIT_LANE_COUNT - 2;
-        else creditLane = Math.random() > 0.5 ? lane - 1 : lane + 1;
-
-        const creditX = (creditLane * laneWidth) + (laneWidth / 2) - 4; // Center in new lane
-
-        for (let i = 0; i < clusterCount; i++) {
-          creditsRef.current.push({
-            id: Math.random().toString(36),
-            x: creditX,
-            y: y - 50 - (i * 40), // Spread out vertically
-            collected: false
-          });
-        }
-      }
-
+      obstaclesRef.current.push({ x: (lane * laneWidth) + (laneWidth / 2) - 20, y: -200, width: 40, height: 40, type: ObstacleType.POWERUP, powerupType: type, passed: false, lane });
     } else {
-      // Landscape Spawning Logic
-      const typeRoll = Math.random();
-      y = groundY - h;
+      obstaclesRef.current.push({ x: width + 100, y: groundY - 120 - Math.random() * 80, width: 40, height: 40, type: ObstacleType.POWERUP, powerupType: type, passed: false });
+    }
+  };
 
-      const isSynergy = synergyActiveFramesRef.current > 0;
-      if (typeRoll > (1 - (isSynergy ? config.lifePackSynergyChance : config.lifePackBaseChance))) { type = ObstacleType.LIFE_PACK; w = 30; h = 30; y = groundY - 40; }
-      else if (typeRoll > 0.7) { type = ObstacleType.HOVER_MINE; w = 30; h = 30; y = groundY - 50 - Math.random() * 60; }
-      else if (typeRoll > 0.4) { type = ObstacleType.DRONE_HIGH; y = groundY - 110; w = 50; h = 30; }
-      else { type = ObstacleType.DRONE_LOW; w = 35; h = 35; y = groundY - h; }
+  const spawnObstacle = () => {
+    const { width, groundY } = dimensionsRef.current;
+    const currentBiome = currentBiomeIndexRef.current;
 
-      x = width + 100;
+    // Rare Obstacles
+    if (RARE_OBSTACLE_CONFIG.GLASS_CEILING.biomes.includes(currentBiome) && Math.random() < RARE_OBSTACLE_CONFIG.GLASS_CEILING.spawnChance) {
+      if (isPortrait) {
+        const lane = Math.floor(Math.random() * PORTRAIT_LANE_COUNT);
+        const laneWidth = width * (PORTRAIT_LANE_WIDTH_PERCENT / 100);
+        obstaclesRef.current.push({ x: lane * laneWidth, y: -200, width: laneWidth, height: 80, type: ObstacleType.GLASS_CEILING, passed: false, lane, descendTimer: 0 });
+      } else {
+        obstaclesRef.current.push({ x: width + 100, y: groundY - 180, width: 120, height: 80, type: ObstacleType.GLASS_CEILING, passed: false, descendTimer: 0 });
+      }
+      return;
+    }
 
-      obstaclesRef.current.push({ x, y, width: w, height: h, type, passed: false, frameOffset: Math.random() * 100 });
+    if (RARE_OBSTACLE_CONFIG.DATA_CORRUPTER.biomes.includes(currentBiome) && Math.random() < RARE_OBSTACLE_CONFIG.DATA_CORRUPTER.spawnChance) {
+      const size = RARE_OBSTACLE_CONFIG.DATA_CORRUPTER.size;
+      if (isPortrait) {
+        const lane = Math.floor(Math.random() * PORTRAIT_LANE_COUNT);
+        const laneWidth = width * (PORTRAIT_LANE_WIDTH_PERCENT / 100);
+        obstaclesRef.current.push({ x: (lane * laneWidth) + (laneWidth / 2) - size / 2, y: -200, width: size, height: size, type: ObstacleType.DATA_CORRUPTER, passed: false, lane });
+      } else {
+        obstaclesRef.current.push({ x: width + 100, y: groundY - size - 30, width: size, height: size, type: ObstacleType.DATA_CORRUPTER, passed: false });
+      }
+      return;
+    }
 
-      // Landscape Credits
-      if (Math.random() < config.creditSpawnChance) {
-        const clusterCount = 3 + Math.floor(Math.random() * 3);
-        const startX = width + 150;
-        for (let i = 0; i < clusterCount; i++) {
-          creditsRef.current.push({
-            id: Math.random().toString(36),
-            x: startX + (i * 40),
-            y: type === ObstacleType.DRONE_HIGH ? groundY - 20 : y - 20 - (Math.random() * 40),
-            collected: false
-          });
-        }
+    let type = ObstacleType.DRONE_LOW;
+    const isSynergy = synergyActiveFramesRef.current > 0;
+    const typeRoll = Math.random();
+    if (typeRoll > (1 - (isSynergy ? config.lifePackSynergyChance : config.lifePackBaseChance))) type = ObstacleType.LIFE_PACK;
+    else if (typeRoll > 0.7) type = ObstacleType.HOVER_MINE;
+    else if (typeRoll > 0.4) type = ObstacleType.DRONE_HIGH;
+
+    if (isPortrait) {
+      const lane = Math.floor(Math.random() * PORTRAIT_LANE_COUNT);
+      const laneWidth = width * (PORTRAIT_LANE_WIDTH_PERCENT / 100);
+      obstaclesRef.current.push({ x: (lane * laneWidth) + (laneWidth / 2) - 20, y: -200, width: 40, height: 40, type, passed: false, lane });
+      if (Math.random() < POWERUP_CONFIG.SPAWN_CHANCE) spawnPowerup();
+      else if (Math.random() < config.creditSpawnChance) {
+        let cl = (lane === 0) ? 1 : ((lane === 2) ? 1 : (Math.random() > 0.5 ? lane - 1 : lane + 1));
+        const cx = (cl * laneWidth) + (laneWidth / 2) - 4;
+        for (let i = 0; i < 3; i++) creditsRef.current.push({ id: Math.random().toString(36), x: cx, y: -250 - (i * 40), collected: false });
+      }
+    } else {
+      let y = groundY - 40;
+      if (type === ObstacleType.DRONE_HIGH) y = groundY - 110;
+      else if (type === ObstacleType.HOVER_MINE) y = groundY - 60 - Math.random() * 60;
+      obstaclesRef.current.push({ x: width + 100, y, width: 40, height: 40, type, passed: false, frameOffset: Math.random() * 100 });
+      if (Math.random() < POWERUP_CONFIG.SPAWN_CHANCE) spawnPowerup();
+      else if (Math.random() < config.creditSpawnChance) {
+        const sx = width + 150;
+        for (let i = 0; i < 4; i++) creditsRef.current.push({ id: Math.random().toString(36), x: sx + (i * 40), y: groundY - 40 - Math.random() * 40, collected: false });
       }
     }
   };
 
-  const resetGame = () => {
-    const { groundY } = dimensionsRef.current;
-    scoreRef.current = 0;
-    speedRef.current = config.baseSpeed;
-    framesRef.current = 0;
-    shakeRef.current = 0;
-    stageRef.current = 0;
-    livesRef.current = INITIAL_LIVES;
-    invincibleFramesRef.current = 0;
-    synergyMeterRef.current = 0;
-    synergyActiveFramesRef.current = 0;
-    sessionCreditsRef.current = 0;
-    obstaclesRef.current = [];
-    creditsRef.current = [];
-    lasersRef.current = [];
-    particlesRef.current = [];
-    playerRef.current = {
-      y: groundY - PLAYER_HEIGHT_STANDING,
-      vy: 0,
-      isDucking: false,
-      isGrounded: true,
-      lane: 1,
-      laneX: dimensionsRef.current.width / 2,
-      altitude: 0
-    };
-    laneRef.current = 1;
-    laneXRef.current = dimensionsRef.current.width / 2;
-    altitudeRef.current = 0;
-    setScore(0);
-    setLives(INITIAL_LIVES);
-    setSynergy(0);
+  const updateBoss = (relativeDelta: number) => {
+    if (!bossRef.current) return;
+    const boss = bossRef.current;
+    const { width, height, groundY } = dimensionsRef.current;
+    boss.frame += relativeDelta;
+
+    switch (boss.phase) {
+      case BossPhase.ENTERING:
+        const ty = isPortrait ? 200 : groundY - 200;
+        boss.y += (ty - boss.y) * 0.05 * relativeDelta;
+        if (Math.abs(boss.y - ty) < 5) boss.phase = BossPhase.IDLE;
+        break;
+      case BossPhase.IDLE:
+        boss.attackTimer -= relativeDelta;
+        if (boss.attackTimer <= 0) {
+          if (boss.attacksPerformed >= boss.maxAttacks) boss.phase = BossPhase.LEAVING;
+          else {
+            boss.phase = BossPhase.PREPARING_ATTACK;
+            boss.targetLane = isPortrait ? Math.floor(Math.random() * 3) : playerRef.current.y + PLAYER_HEIGHT_STANDING / 2;
+            boss.attackTimer = BOSS_CONFIG.CHARGE_DURATION;
+          }
+        }
+        break;
+      case BossPhase.PREPARING_ATTACK:
+        boss.attackTimer -= relativeDelta;
+        boss.beamChargeLevel = 1 - (boss.attackTimer / BOSS_CONFIG.CHARGE_DURATION);
+        if (boss.attackTimer <= 0) {
+          boss.phase = BossPhase.ATTACKING;
+          boss.attackTimer = BOSS_CONFIG.BEAM_DURATION;
+          soundService.playLaser();
+          shakeRef.current = 10;
+        }
+        break;
+      case BossPhase.ATTACKING:
+        boss.attackTimer -= relativeDelta;
+        let hit = false;
+        if (isPortrait) {
+          const lw = width * (PORTRAIT_LANE_WIDTH_PERCENT / 100);
+          if (Math.floor(playerRef.current.laneX! / lw) === boss.targetLane) hit = true;
+        } else {
+          if (Math.abs(playerRef.current.y + PLAYER_HEIGHT_STANDING / 2 - boss.targetLane) < 40) hit = true;
+        }
+        if (hit && invincibleFramesRef.current <= 0) handleCollision(0, "TERMINATED BY AUDITOR");
+        if (boss.attackTimer <= 0) { boss.phase = BossPhase.IDLE; boss.attackTimer = BOSS_CONFIG.ATTACK_COOLDOWN; boss.attacksPerformed++; }
+        break;
+      case BossPhase.TAKING_DAMAGE:
+        boss.attackTimer = (boss.attackTimer || 0) + relativeDelta;
+        if (boss.attackTimer > 20) { boss.phase = BossPhase.IDLE; boss.attackTimer = 10; }
+        break;
+      case BossPhase.LEAVING:
+        boss.y -= 10 * relativeDelta;
+        if (boss.y < -300) bossRef.current = null;
+        break;
+      case BossPhase.DEFEATED:
+        boss.y += 5 * relativeDelta;
+        boss.x += (Math.random() - 0.5) * 5;
+        if (boss.y > height + 300) bossRef.current = null;
+        break;
+    }
   };
+
+  const resetGame = useCallback(() => {
+    if (!containerRef.current) return;
+    const { width, height } = containerRef.current.getBoundingClientRect();
+    const groundY = isPortrait ? height - 50 : height - 80;
+    dimensionsRef.current = { width, height, groundY };
+
+    scoreRef.current = 0; speedRef.current = config.baseSpeed; framesRef.current = 0; shakeRef.current = 0;
+    stageRef.current = 0; livesRef.current = INITIAL_LIVES; invincibleFramesRef.current = 0;
+    synergyMeterRef.current = 0; synergyActiveFramesRef.current = 0;
+    obstaclesRef.current = []; creditsRef.current = []; lasersRef.current = []; particlesRef.current = [];
+
+    // Initialize Stars
+    starsRef.current = Array.from({ length: 50 }, () => ({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      size: 0.5 + Math.random() * 1.5,
+      speed: 0.1 + Math.random() * 0.5,
+      opacity: 0.3 + Math.random() * 0.7
+    }));
+
+    bossRef.current = null; nextBossTriggerScoreRef.current = BOSS_CONFIG.TRIGGER_SCORE; bossEncounterCountRef.current = 0;
+    playerRef.current = {
+      y: groundY - PLAYER_HEIGHT_STANDING, vy: 0, isDucking: false, isGrounded: true,
+      hasShield: false, activeEffectFrames: 0, activeEffectType: null, lane: 1, laneX: width / 2, altitude: 0
+    };
+    activeEffectFramesRef.current = 0; activeEffectTypeRef.current = null; controlsInvertedFramesRef.current = 0; laneRef.current = 1;
+    hasShieldRef.current = false;
+    setScore(0); setLives(INITIAL_LIVES); setSynergy(0);
+  }, [config.baseSpeed, isPortrait, setScore, setLives, setSynergy]);
+
+  const startJump = useCallback(() => {
+    if (gameState !== GameState.PLAYING) return;
+    if (playerRef.current.isGrounded) {
+      playerRef.current.vy = config.jumpForce; playerRef.current.isGrounded = false;
+      soundService.playJump();
+    }
+  }, [gameState, config.jumpForce]);
+
+  const endJump = useCallback(() => {
+    if (gameState !== GameState.PLAYING) return;
+    if (!isPortrait && !playerRef.current.isGrounded && playerRef.current.vy < -5) playerRef.current.vy *= 0.4;
+  }, [gameState, isPortrait]);
+
+  const startDuck = useCallback(() => {
+    if (gameState !== GameState.PLAYING) return;
+    playerRef.current.isDucking = true; setGuideVisible(false);
+    if (!playerRef.current.isGrounded) playerRef.current.vy += 10;
+    soundService.playDuck();
+  }, [gameState]);
+
+  const endDuck = useCallback(() => {
+    if (gameState !== GameState.PLAYING) return;
+    playerRef.current.isDucking = false;
+  }, [gameState]);
+
+  // --- Main Update Loop ---
 
   const update = useCallback((relativeDelta: number) => {
     if (gameState !== GameState.PLAYING) return;
     const { width, height, groundY } = dimensionsRef.current;
 
-    // Input Handling
-    if (isJumpingInputActive.current && playerRef.current.isGrounded) startJump();
-    if (isDuckingInputActive.current && !playerRef.current.isDucking) startDuck();
-
-    const synergyMultiplier = synergyActiveFramesRef.current > 0 ? 1.5 : 1;
-
-    // Time Scale Calculation
-    // Scale = 1 + (Score / Milestone) * Increment
-    const timeScale = 1 + (Math.floor(scoreRef.current / config.speedMilestone) * config.timeScaleIncrement);
-
-    // Cap timeScale indirectly via maxSpeed if needed? 
-    // Or just let it run? Let's cap max effective speed.
-    // effectiveSpeed = base * timeScale.
-    // if effectiveSpeed > maxSpeed -> cap timeScale.
-    const effectiveSpeed = config.baseSpeed * timeScale;
-    const actualTimeScale = effectiveSpeed > config.maxSpeed ? (config.maxSpeed / config.baseSpeed) : timeScale;
-
-    // Apply Time Scale to global Speed Ref (used for scrolling)
-    speedRef.current = config.baseSpeed * actualTimeScale;
-
-    // Check Milestone for Sound/Visuals ONLY
-    const currentMilestoneLevel = Math.floor(scoreRef.current / config.speedMilestone);
-    if (currentMilestoneLevel > lastMilestoneLevelRef.current) {
-      lastMilestoneLevelRef.current = currentMilestoneLevel;
-      soundService.playSynergyStart();
-      activeSubliminalRef.current = { text: "SPEED UP", opacity: 1, x: width / 2, y: height / 2, scale: 2 };
-    }
-
-    // setScore(Math.floor(scoreRef.current)); // Logic moved to credit collection?
-    // Actually, setScore should be called whenever scoreRef changes.
-    // Since score only changes on collection, we can just call setScore loop in case? 
-    // Or better, let's keep setScore here to sync refs to state, but scoreRef won't change unless events happen.
-    setScore(Math.floor(scoreRef.current));
-    framesRef.current += relativeDelta;
-    shakeRef.current = Math.max(0, shakeRef.current - 0.5 * relativeDelta);
-
     if (invincibleFramesRef.current > 0) invincibleFramesRef.current = Math.max(0, invincibleFramesRef.current - relativeDelta);
 
-    // Laser Cooldown Logic
-    if (laserCooldownRef.current > 0) {
-      laserCooldownRef.current = Math.max(0, laserCooldownRef.current - relativeDelta);
-    }
+    const timeScale = 1 + (Math.floor(scoreRef.current / config.speedMilestone) * config.timeScaleIncrement);
+    const actualTimeScale = Math.min(timeScale, config.maxSpeed / config.baseSpeed);
+    speedRef.current = config.baseSpeed * actualTimeScale;
+    setScore(Math.floor(scoreRef.current));
+    framesRef.current += relativeDelta;
+    animTimeRef.current += relativeDelta / 60;
+    shakeRef.current = Math.max(0, shakeRef.current - 0.5 * relativeDelta);
+
+    if (controlsInvertedFramesRef.current > 0) controlsInvertedFramesRef.current = Math.max(0, controlsInvertedFramesRef.current - relativeDelta);
+    if (laserCooldownRef.current > 0) laserCooldownRef.current = Math.max(0, laserCooldownRef.current - relativeDelta);
 
     if (synergyActiveFramesRef.current > 0) {
       synergyActiveFramesRef.current -= relativeDelta;
       setSynergy((synergyActiveFramesRef.current / SYNERGY_DURATION) * 100);
-      if (synergyActiveFramesRef.current <= 0) {
-        synergyMeterRef.current = 0;
-        setSynergy(0);
-        setIsSynergyActive(false);
-      }
+      if (synergyActiveFramesRef.current <= 0) { setSynergy(0); setIsSynergyActive(false); }
     }
+
+    if (activeEffectFramesRef.current > 0) {
+      activeEffectFramesRef.current -= relativeDelta;
+      if (activeEffectFramesRef.current <= 0) { activeEffectTypeRef.current = null; playerRef.current.activeEffectType = null; }
+    }
+    playerRef.current.activeEffectType = activeEffectTypeRef.current;
+    playerRef.current.activeEffectFrames = activeEffectFramesRef.current;
+    playerRef.current.hasShield = hasShieldRef.current;
 
     const currentScore = Math.floor(scoreRef.current);
+    if (!bossRef.current && currentScore >= nextBossTriggerScoreRef.current) spawnBoss();
+    if (bossRef.current) updateBoss(relativeDelta);
 
-    // Biome Logic
-    const maxBiome = BIOMES.length - 1;
-    if (currentBiomeIndexRef.current < maxBiome) {
-      const nextBiome = BIOMES[currentBiomeIndexRef.current + 1];
-      if (currentScore >= nextBiome.threshold) {
-        if (nextBiomeIndexRef.current === currentBiomeIndexRef.current) {
-          nextBiomeIndexRef.current = currentBiomeIndexRef.current + 1;
-        }
-      }
+    if (currentBiomeIndexRef.current < BIOMES.length - 1 && currentScore >= BIOMES[currentBiomeIndexRef.current + 1].threshold) {
+      nextBiomeIndexRef.current = currentBiomeIndexRef.current + 1;
     }
-
-    // Handle Transition
     if (nextBiomeIndexRef.current > currentBiomeIndexRef.current) {
-      biomeTransitionRef.current += 0.01 * relativeDelta; // Transition speed
-      if (biomeTransitionRef.current >= 1) {
-        biomeTransitionRef.current = 0;
-        currentBiomeIndexRef.current = nextBiomeIndexRef.current;
-      }
+      biomeTransitionRef.current += 0.01 * relativeDelta;
+      if (biomeTransitionRef.current >= 1) { biomeTransitionRef.current = 0; currentBiomeIndexRef.current = nextBiomeIndexRef.current; }
     }
+    stageRef.current = currentBiomeIndexRef.current;
 
-    stageRef.current = currentBiomeIndexRef.current; // Sync legacy stage ref
-
-    // Subliminal Text Trigger Logic
+    // Subliminal Spawning
     subliminalTimerRef.current += relativeDelta;
-    if (subliminalTimerRef.current >= 180 && Math.random() > 0.4) {
-      subliminalTimerRef.current = 0; // Reset timer
-      const word = triggersRef.current[Math.floor(Math.random() * triggersRef.current.length)];
-      activeSubliminalRef.current = { text: word, opacity: 0.1 + (speedRef.current / config.maxSpeed) * 0.5, x: width / 2, y: height / 2, scale: 1 };
-      shakeRef.current += 3;
-    } else if (subliminalTimerRef.current >= 180) {
-      subliminalTimerRef.current = 0; // Reset anyway if random check failed, to prevent rapid firing
+    if (subliminalTimerRef.current > 180) { // Every ~3 seconds
+      subliminalTimerRef.current = 0;
+      const text = triggersRef.current[Math.floor(Math.random() * triggersRef.current.length)];
+      activeSubliminalRef.current = {
+        text,
+        opacity: 0.15,
+        x: Math.random() * width,
+        y: Math.random() * height,
+        scale: 0.8 + Math.random() * 0.5
+      };
     }
 
     if (activeSubliminalRef.current) {
-      activeSubliminalRef.current.opacity -= 0.02 * relativeDelta;
-      activeSubliminalRef.current.scale += 0.01 * relativeDelta;
+      activeSubliminalRef.current.opacity -= 0.002 * relativeDelta;
       if (activeSubliminalRef.current.opacity <= 0) activeSubliminalRef.current = null;
     }
 
-    starsRef.current.forEach(star => {
-      if (isPortrait) {
-        star.y += speedRef.current * star.speed * relativeDelta; // Stars move down
-        if (star.y > height) { star.y = -10; star.x = Math.random() * width; }
-      } else {
-        star.x -= speedRef.current * star.speed * relativeDelta;
-        if (star.x < 0) { star.x = width + Math.random() * 50; star.y = Math.random() * height; }
-      }
+    // Stars
+    starsRef.current.forEach(s => {
+      if (isPortrait) { s.y += speedRef.current * s.speed * relativeDelta; if (s.y > height) { s.y = -10; s.x = Math.random() * width; } }
+      else { s.x -= speedRef.current * s.speed * relativeDelta; if (s.x < -10) { s.x = width + 10; s.y = Math.random() * height; } }
     });
 
     const player = playerRef.current;
+    const isSynergy = synergyActiveFramesRef.current > 0;
 
     if (isPortrait) {
-      // --- PORTRAIT PHYSICS ---
-
-      // 1. Lane Movement smoothing
-      const laneWidth = width * (PORTRAIT_LANE_WIDTH_PERCENT / 100);
-      const targetX = (laneRef.current * laneWidth) + (laneWidth / 2);
-      // Lerp adjustment for delta time: approximate
-      player.laneX = player.laneX ? player.laneX + (targetX - player.laneX) * (0.2 * relativeDelta) : targetX;
-
-      // Dash Trail Effect
-      if (Math.abs(player.laneX - lastLaneXRef.current) > 5) {
-        const playerY = height - PORTRAIT_PLAYER_Y_OFFSET;
-        createParticles(lastLaneXRef.current, playerY + PORTRAIT_PLAYER_SIZE / 2, 3, COLORS.NEON_CYAN);
-      }
-      lastLaneXRef.current = player.laneX;
-
-      // 2. Altitude Physics (Jump) using standard gravity
-      // Apply timeScale to gravity and velocity integration
+      const lw = width * (PORTRAIT_LANE_WIDTH_PERCENT / 100);
+      const targetX = (laneRef.current * lw) + (lw / 2);
+      player.laneX = player.laneX ? player.laneX + (targetX - player.laneX) * 0.2 * relativeDelta : targetX;
       player.vy += config.gravity * actualTimeScale * relativeDelta;
-      player.altitude = (player.altitude || 0) - (player.vy * actualTimeScale * relativeDelta);
-      // In landscape, ground is high Y, jump decreases Y. So Y += vy makes sense.
-      // Here, altitude is height ABOVE ground. So velocity should be subtracted? 
-      // Jump force is -22. So negative vy means moving UP in landscape (smaller Y). 
-      // So for altitude: altitude should INCREASE when vy is negative.
-      // So altitude -= vy.
-      // Gravity increases vy (makes it positive). So altitude decreases. Correct.
+      player.altitude! -= player.vy * actualTimeScale * relativeDelta;
+      if (player.altitude! < 0) { player.altitude = 0; player.vy = 0; player.isGrounded = true; }
 
-      if (player.altitude < 0) {
-        player.altitude = 0;
-        player.vy = 0;
-        player.isGrounded = true;
-      }
-
-      // 2.5 Laser Logic (Beam Duration)
-      for (let i = lasersRef.current.length - 1; i >= 0; i--) {
-        const laser = lasersRef.current[i];
-        laser.life -= relativeDelta;
-        if (laser.life <= 0) {
-          lasersRef.current.splice(i, 1);
+      const spawnDist = 250 + speedRef.current * 4;
+      if (!bossRef.current) {
+        if (!obstaclesRef.current[obstaclesRef.current.length - 1] || obstaclesRef.current[obstaclesRef.current.length - 1].y > spawnDist) {
+          if (Math.random() < ((config.obstacleSpawnRate + stageRef.current * 0.05) * relativeDelta)) spawnObstacle();
         }
-      }
-
-      // 3. Obstacle Logic
-      const minDistance = 200 + (speedRef.current * 2);
-      if (!obstaclesRef.current[obstaclesRef.current.length - 1] || (obstaclesRef.current[obstaclesRef.current.length - 1].y > minDistance)) {
-        // Spawn rate adjusted for delta time
-        if (Math.random() < ((config.obstacleSpawnRate + stageRef.current * 0.05) * relativeDelta)) spawnObstacle();
+      } else {
+        // Allow powerups to spawn during boss fight (rare)
+        if (Math.random() < 0.001 * relativeDelta) spawnPowerup();
       }
 
       for (let i = obstaclesRef.current.length - 1; i >= 0; i--) {
         const obs = obstaclesRef.current[i];
-        if (obs.shattered) {
-          obs.y += speedRef.current * relativeDelta; // Move shattered pieces down
-          if (obs.y > height + 50) obstaclesRef.current.splice(i, 1);
-          continue;
-        }
+        if (obs.shattered) { obs.y += speedRef.current * relativeDelta; if (obs.y > height + 100) obstaclesRef.current.splice(i, 1); continue; }
         obs.y += speedRef.current * relativeDelta;
 
-        // Collision Detection
-        const playerY = height - PORTRAIT_PLAYER_Y_OFFSET;
-        const playerSize = PORTRAIT_PLAYER_SIZE;
-
-        // Simple lane check first
-        const laneMatch = Math.abs(obs.x + obs.width / 2 - player.laneX!) < (laneWidth / 2); // Rough lane check or exact lane matches?
-        // Better: Check rect intersection + Z 
-
-        // Obstacle Rect
-        const obsRect = { l: obs.x, r: obs.x + obs.width, t: obs.y, b: obs.y + obs.height };
-        // Player Rect
-        const playRect = {
-          l: player.laneX! - playerSize / 2 + 10,
-          r: player.laneX! + playerSize / 2 - 10,
-          t: playerY + 10,
-          b: playerY + playerSize - 10
-        };
-
-        let collided = !(obsRect.r < playRect.l || obsRect.l > playRect.r || obsRect.b < playRect.t || obsRect.t > playRect.b);
-
-        if (collided) {
-          // Check Z-axis / State
-          if (obs.type === ObstacleType.DRONE_LOW) {
-            // Jump over
-            if (player.altitude! > 40) collided = false;
-          } else if (obs.type === ObstacleType.DRONE_HIGH) {
-            // Duck under
-            if (player.isDucking) collided = false;
+        // Glass Ceiling Descent Logic (Portrait)
+        if (obs.type === ObstacleType.GLASS_CEILING && !obs.shattered) {
+          const triggerDist = height * RARE_OBSTACLE_CONFIG.GLASS_CEILING.descendAt;
+          if (obs.y > -triggerDist + height) { // Coming from top, so check if it has passed a certain point?
+            // Actually in portrait, it spawns at y: -200 and moves down.
+            // Let's make it descend faster when it reaches top of screen.
+            const targetY = 50; // Just below the top
+            if (obs.y < targetY) {
+              obs.y += RARE_OBSTACLE_CONFIG.GLASS_CEILING.descendSpeed * relativeDelta;
+            }
           }
         }
 
-        if (collided) {
-          if (obs.type === ObstacleType.LIFE_PACK) {
-            obs.shattered = true;
-            if (livesRef.current < INITIAL_LIVES) {
-              livesRef.current++;
-              setLives(livesRef.current);
-              soundService.playLifeUp();
-              createParticles(obs.x + obs.width / 2, obs.y + obs.height / 2, 20, COLORS.NEON_GREEN);
-              createFloatingText(obs.x + obs.width / 2, obs.y, "+1 LIFE", COLORS.NEON_GREEN, 24);
-            } else {
-              scoreRef.current += 1000;
-              soundService.playScore();
-              createParticles(obs.x + obs.width / 2, obs.y + obs.height / 2, 10, COLORS.NEON_BLUE);
-              createFloatingText(obs.x + obs.width / 2, obs.y, "+1000", COLORS.NEON_BLUE, 28);
-            }
-            return;
-          }
+        const py = height - PORTRAIT_PLAYER_Y_OFFSET;
+        const collided = Math.abs(obs.x + obs.width / 2 - player.laneX!) < lw / 2 && Math.abs(obs.y + obs.height / 2 - py) < 30;
 
-          if (synergyActiveFramesRef.current > 0) {
-            obs.shattered = true;
-            scoreRef.current += 500;
-            createParticles(obs.x + obs.width / 2, obs.y + obs.height / 2, 20, COLORS.SYNERGY_WHITE);
-            createFloatingText(obs.x + obs.width / 2, obs.y, "+500", COLORS.SYNERGY_WHITE, 26);
-            soundService.playScore();
-            shakeRef.current = 5;
+        if (collided) {
+          // Check for beneficial items first (powerups, life packs) before destructive effects
+          if (obs.type === ObstacleType.POWERUP) {
+            if (obs.powerupType === PowerupType.SHIELD) { hasShieldRef.current = true; playerRef.current.hasShield = true; createFloatingText(obs.x, obs.y, "FIREWALL BUFFER", POWERUP_CONFIG.SHIELD.color, 24); }
+            else { activeEffectTypeRef.current = PowerupType.REFLECT; activeEffectFramesRef.current = POWERUP_CONFIG.REFLECT.duration; createFloatingText(obs.x, obs.y, "REFLECTIVE BURST", POWERUP_CONFIG.REFLECT.color, 24); soundService.playSynergyStart(); }
+            obstaclesRef.current.splice(i, 1); soundService.playLifeUp(); continue;
+          }
+          if (obs.type === ObstacleType.LIFE_PACK) {
+            livesRef.current = Math.min(3, livesRef.current + 1);
+            setLives(livesRef.current);
+            obstaclesRef.current.splice(i, 1);
+            soundService.playLifeUp();
+            createFloatingText(obs.x, obs.y, "+1 LIFE", COLORS.NEON_GREEN, 24);
             continue;
           }
-
-          if (invincibleFramesRef.current === 0) {
-            soundService.playCollision(obs.type);
-            createParticles(player.laneX!, playerY, 30, COLORS.NEON_RED);
-            shakeRef.current = 25;
-            if (livesRef.current > 1) {
-              livesRef.current--; setLives(livesRef.current);
-              invincibleFramesRef.current = INVINCIBILITY_FRAMES;
-              soundService.playRespawn();
-              // In portrait, maybe clear nearby obstacles?
-              obstaclesRef.current.forEach(o => { if (Math.abs(o.y - playerY) < 300) o.shattered = true; });
-            } else {
-              livesRef.current = 0; setLives(0);
-              setDeathCause(Math.floor(scoreRef.current), "OPERATIONAL ERROR");
-              setGameState(GameState.GAME_OVER);
-            }
-            return;
+          // Apply destructive effects (REFLECT/synergy) to harmful obstacles
+          if (activeEffectTypeRef.current === PowerupType.REFLECT || isSynergy) {
+            obs.shattered = true; scoreRef.current += 500; soundService.playScore(); createFloatingText(obs.x, obs.y, "+500", "#fff", 24); continue;
           }
+          if (obs.type === ObstacleType.DATA_CORRUPTER) {
+            controlsInvertedFramesRef.current = RARE_OBSTACLE_CONFIG.DATA_CORRUPTER.invertDuration;
+            createFloatingText(obs.x, obs.y, "CONTROLS INVERTED", COLORS.NEON_PURPLE, 24);
+            obstaclesRef.current.splice(i, 1);
+            soundService.playCollision(ObstacleType.DATA_CORRUPTER);
+            continue;
+          }
+          handleCollision(0, "CRITICAL ERROR");
         }
-
-        if (!obs.passed && obs.y > playerY + playerSize) {
-          obs.passed = true;
-        }
-        if (obs.y > height + 100) obstaclesRef.current.splice(i, 1);
+        if (obs.y > height + 200) obstaclesRef.current.splice(i, 1);
       }
 
-      // Credits Update
       for (let i = creditsRef.current.length - 1; i >= 0; i--) {
-        const c = creditsRef.current[i];
-        c.y += speedRef.current * relativeDelta;
-
-        const playerY = height - PORTRAIT_PLAYER_Y_OFFSET;
-        const dist = Math.sqrt(Math.pow(c.x - player.laneX!, 2) + Math.pow(c.y - playerY, 2));
-
-        if (dist < 30 && !c.collected) {
-          c.collected = true;
-          soundService.playCredit();
-          sessionCreditsRef.current++;
-          const creditScore = CREDIT_SCORE_VALUE * synergyMultiplier;
-          scoreRef.current += creditScore;
-          createFloatingText(c.x, c.y, `+${Math.floor(creditScore)}`, synergyMultiplier > 1 ? COLORS.SYNERGY_WHITE : COLORS.NEON_CYAN, 18);
-          // ...Synergy logic (same as landscape)
-          if (synergyActiveFramesRef.current === 0) {
-            synergyMeterRef.current += SYNERGY_CREDIT_VALUE;
-            setSynergy(synergyMeterRef.current);
-            if (synergyMeterRef.current >= 100) {
-              synergyActiveFramesRef.current = SYNERGY_DURATION;
-              setIsSynergyActive(true);
-              soundService.playSynergyStart();
-              createFloatingText(width / 2, height / 2, "SYNERGY!", COLORS.SYNERGY_WHITE, 48);
-              shakeRef.current = 10;
-            }
-          }
-          // Laser Cooldown Reduction Logic
-          if (laserCooldownRef.current > 0) {
-            creditsSinceLastReductionRef.current++;
-            if (creditsSinceLastReductionRef.current >= 2) {
-              creditsSinceLastReductionRef.current = 0;
-              laserCooldownRef.current = Math.max(0, laserCooldownRef.current - LASER_COOLDOWN_REDUCTION);
-            }
-          }
-
-          if (sessionCreditsRef.current >= LIFE_RECOVERY_THRESHOLD) {
-            sessionCreditsRef.current = 0;
-            if (livesRef.current < INITIAL_LIVES) {
-              livesRef.current++;
-              setLives(livesRef.current);
-              soundService.playLifeUp();
-            }
-          }
+        const c = creditsRef.current[i]; c.y += speedRef.current * relativeDelta;
+        if (!c.collected && Math.abs(c.x - player.laneX!) < 30 && Math.abs(c.y - (height - PORTRAIT_PLAYER_Y_OFFSET)) < 30) {
+          c.collected = true; scoreRef.current += 100; soundService.playCredit();
+          synergyMeterRef.current += SYNERGY_CREDIT_VALUE;
+          if (synergyMeterRef.current >= 100 && !isSynergy) { setIsSynergyActive(true); synergyActiveFramesRef.current = SYNERGY_DURATION; synergyMeterRef.current = 0; }
         }
-        if (c.y > height + 50 || c.collected) creditsRef.current.splice(i, 1);
+        if (c.y > height + 200 || c.collected) creditsRef.current.splice(i, 1);
       }
-
     } else {
-      // --- LANDSCAPE PHYSICS (Existing) ---
       player.vy += config.gravity * actualTimeScale * relativeDelta;
       player.y += player.vy * actualTimeScale * relativeDelta;
-      const currentHeight = player.isDucking ? PLAYER_HEIGHT_DUCKING : PLAYER_HEIGHT_STANDING;
-      const playerGround = groundY - currentHeight;
-      if (player.y > playerGround) { player.y = playerGround; player.vy = 0; player.isGrounded = true; }
+      const ph = player.isDucking ? PLAYER_HEIGHT_DUCKING : PLAYER_HEIGHT_STANDING;
+      if (player.y > groundY - ph) { player.y = groundY - ph; player.vy = 0; player.isGrounded = true; }
 
-      const minDistance = 300 + (speedRef.current * 10);
-      if (!obstaclesRef.current[obstaclesRef.current.length - 1] || (width - obstaclesRef.current[obstaclesRef.current.length - 1].x > minDistance)) {
-        if (Math.random() < ((config.obstacleSpawnRate + stageRef.current * 0.05) * relativeDelta)) spawnObstacle();
+      const minDistance = 300 + speedRef.current * 10;
+      if (!bossRef.current) {
+        if (!obstaclesRef.current[obstaclesRef.current.length - 1] || width - obstaclesRef.current[obstaclesRef.current.length - 1].x > minDistance) {
+          if (Math.random() < ((config.obstacleSpawnRate + stageRef.current * 0.05) * relativeDelta)) spawnObstacle();
+        }
+      } else {
+        // Allow powerups to spawn during boss fight (rare)
+        if (Math.random() < 0.001 * relativeDelta) spawnPowerup();
       }
 
-      // Credits Update
+      for (let i = obstaclesRef.current.length - 1; i >= 0; i--) {
+        const obs = obstaclesRef.current[i];
+        if (obs.shattered) { obs.x -= speedRef.current * relativeDelta; if (obs.x < -100) obstaclesRef.current.splice(i, 1); continue; }
+        obs.x -= speedRef.current * relativeDelta;
+
+        // Glass Ceiling Descent Logic
+        if (obs.type === ObstacleType.GLASS_CEILING && !obs.shattered) {
+          const triggerDist = width * RARE_OBSTACLE_CONFIG.GLASS_CEILING.descendAt;
+          if (obs.x < triggerDist) {
+            const targetY = groundY - RARE_OBSTACLE_CONFIG.GLASS_CEILING.initialHeight;
+            if (obs.y < targetY) {
+              obs.y += RARE_OBSTACLE_CONFIG.GLASS_CEILING.descendSpeed * relativeDelta;
+              if (obs.y > targetY) obs.y = targetY;
+            }
+          }
+        }
+
+        const collided = PLAYER_X + PLAYER_WIDTH > obs.x && PLAYER_X < obs.x + obs.width && player.y + ph > obs.y && player.y < obs.y + obs.height;
+        if (collided) {
+          // Check for beneficial items first (powerups, life packs) before destructive effects
+          if (obs.type === ObstacleType.POWERUP) {
+            if (obs.powerupType === PowerupType.SHIELD) { hasShieldRef.current = true; playerRef.current.hasShield = true; createFloatingText(obs.x, obs.y, "FIREWALL BUFFER", POWERUP_CONFIG.SHIELD.color, 24); }
+            else { activeEffectTypeRef.current = PowerupType.REFLECT; activeEffectFramesRef.current = POWERUP_CONFIG.REFLECT.duration; createFloatingText(obs.x, obs.y, "REFLECTIVE BURST", POWERUP_CONFIG.REFLECT.color, 24); soundService.playSynergyStart(); }
+            obstaclesRef.current.splice(i, 1); soundService.playLifeUp(); continue;
+          }
+          if (obs.type === ObstacleType.LIFE_PACK) {
+            livesRef.current = Math.min(3, livesRef.current + 1);
+            setLives(livesRef.current);
+            obstaclesRef.current.splice(i, 1);
+            soundService.playLifeUp();
+            createFloatingText(obs.x, obs.y, "+1 LIFE", COLORS.NEON_GREEN, 24);
+            continue;
+          }
+          // Apply destructive effects (REFLECT/synergy) to harmful obstacles
+          if (activeEffectTypeRef.current === PowerupType.REFLECT || isSynergy) {
+            obs.shattered = true; scoreRef.current += 500; continue;
+          }
+          if (obs.type === ObstacleType.DATA_CORRUPTER) {
+            controlsInvertedFramesRef.current = RARE_OBSTACLE_CONFIG.DATA_CORRUPTER.invertDuration;
+            createFloatingText(obs.x, obs.y, "CONTROLS INVERTED", COLORS.NEON_PURPLE, 24);
+            obstaclesRef.current.splice(i, 1);
+            soundService.playCollision(ObstacleType.DATA_CORRUPTER);
+            continue;
+          }
+          handleCollision(0, "COLLISION");
+        }
+        if (obs.x < -200) obstaclesRef.current.splice(i, 1);
+      }
+
       for (let i = creditsRef.current.length - 1; i >= 0; i--) {
-        const c = creditsRef.current[i];
-        c.x -= speedRef.current * relativeDelta;
-        const dist = Math.sqrt(Math.pow(c.x - (PLAYER_X + PLAYER_WIDTH / 2), 2) + Math.pow(c.y - (player.y + currentHeight / 2), 2));
-        if (dist < 40 && !c.collected) {
-          c.collected = true;
-          soundService.playCredit();
-          sessionCreditsRef.current++;
-          const creditScore = CREDIT_SCORE_VALUE * synergyMultiplier;
-          scoreRef.current += creditScore;
-          createFloatingText(c.x, c.y, `+${Math.floor(creditScore)}`, synergyMultiplier > 1 ? COLORS.SYNERGY_WHITE : COLORS.NEON_CYAN, 18);
-
-          // Synergy Meter
-          if (synergyActiveFramesRef.current === 0) {
-            synergyMeterRef.current += SYNERGY_CREDIT_VALUE;
-            setSynergy(synergyMeterRef.current);
-            if (synergyMeterRef.current >= 100) {
-              synergyActiveFramesRef.current = SYNERGY_DURATION;
-              setIsSynergyActive(true);
-              soundService.playSynergyStart();
-              createFloatingText(width / 2, height / 2, "SYNERGY!", COLORS.SYNERGY_WHITE, 48);
-              shakeRef.current = 10;
-            }
-          }
-
-          // Laser Cooldown Reduction Logic
-          if (laserCooldownRef.current > 0) {
-            creditsSinceLastReductionRef.current++;
-            if (creditsSinceLastReductionRef.current >= 2) {
-              creditsSinceLastReductionRef.current = 0;
-              laserCooldownRef.current = Math.max(0, laserCooldownRef.current - LASER_COOLDOWN_REDUCTION);
-            }
-          }
-
-          // Life Recovery
-          if (sessionCreditsRef.current >= LIFE_RECOVERY_THRESHOLD) {
-            sessionCreditsRef.current = 0;
-            if (livesRef.current < INITIAL_LIVES) {
-              livesRef.current++;
-              setLives(livesRef.current);
-              soundService.playLifeUp();
-            }
-          }
+        const c = creditsRef.current[i]; c.x -= speedRef.current * relativeDelta;
+        if (!c.collected && Math.abs(c.x - PLAYER_X) < 40 && Math.abs(c.y - player.y) < 60) {
+          c.collected = true; scoreRef.current += 100; soundService.playCredit();
+          synergyMeterRef.current += SYNERGY_CREDIT_VALUE;
         }
         if (c.x < -100 || c.collected) creditsRef.current.splice(i, 1);
       }
+    }
 
-      // Obstacles Update
-      for (let i = obstaclesRef.current.length - 1; i >= 0; i--) {
-        const obs = obstaclesRef.current[i];
-        if (obs.shattered) {
-          obs.x -= speedRef.current * relativeDelta;
-          if (obs.x < -150) obstaclesRef.current.splice(i, 1);
-          continue;
+    lasersRef.current.forEach((l, i) => { l.life -= relativeDelta; if (l.life <= 0) lasersRef.current.splice(i, 1); });
+    particlesRef.current.forEach((p, i) => { p.x += p.vx * relativeDelta; p.y += p.vy * relativeDelta; p.life -= 0.05 * relativeDelta; if (p.life <= 0) particlesRef.current.splice(i, 1); });
+    floatingTextsRef.current.forEach((t, i) => { t.y += t.vy * relativeDelta; t.life -= 0.015 * relativeDelta; if (t.life <= 0) floatingTextsRef.current.splice(i, 1); });
+
+  }, [gameState, config, setScore, isPortrait, handleCollision, spawnBoss, fireLaser, setIsSynergyActive, setSynergy]);
+
+  // --- Psychological Triggers ---
+  useEffect(() => {
+    if (gameState !== GameState.PLAYING) return;
+    const fetchTriggers = async () => {
+      try {
+        const newTriggers = await generatePsychologicalTriggers();
+        if (newTriggers && newTriggers.length > 0) {
+          triggersRef.current = [...new Set([...triggersRef.current, ...newTriggers])];
         }
-        obs.x -= speedRef.current * relativeDelta;
+      } catch (e) { console.error("Trigger fetch failed", e); }
+    };
+    fetchTriggers();
+    const interval = setInterval(fetchTriggers, 30000);
+    return () => clearInterval(interval);
+  }, [gameState]);
 
-        const pBox = { l: PLAYER_X + 10, r: PLAYER_X + PLAYER_WIDTH - 10, t: player.y + 5, b: player.y + currentHeight - 5 };
-        const oBox = { l: obs.x, r: obs.x + obs.width, t: obs.y, b: obs.y + obs.height };
-        let collided = pBox.r > oBox.l && pBox.l > oBox.r === false && pBox.b > oBox.t && pBox.t < oBox.b;
-
-        if (!collided && obs.type === ObstacleType.DRONE_HIGH && !player.isDucking && PLAYER_X > obs.x - 120 && PLAYER_X < obs.x + obs.width) collided = true;
-
-        if (collided) {
-          if (synergyActiveFramesRef.current > 0) {
-            obs.shattered = true;
-            scoreRef.current += 500;
-            createParticles(obs.x + obs.width / 2, obs.y + obs.height / 2, 20, COLORS.SYNERGY_WHITE);
-            createFloatingText(obs.x + obs.width / 2, obs.y, "+500", COLORS.SYNERGY_WHITE, 26);
-            soundService.playScore();
-            shakeRef.current = 5;
-            continue;
-          }
-
-          if (obs.type === ObstacleType.LIFE_PACK) {
-            obs.shattered = true;
-            if (livesRef.current < INITIAL_LIVES) {
-              livesRef.current++;
-              setLives(livesRef.current);
-              soundService.playLifeUp();
-              createParticles(obs.x + obs.width / 2, obs.y + obs.height / 2, 20, COLORS.NEON_GREEN);
-              createFloatingText(obs.x + obs.width / 2, obs.y, "+1 LIFE", COLORS.NEON_GREEN, 24);
-            } else {
-              scoreRef.current += 1000;
-              soundService.playScore();
-              createParticles(obs.x + obs.width / 2, obs.y + obs.height / 2, 10, COLORS.NEON_BLUE);
-              createFloatingText(obs.x + obs.width / 2, obs.y, "+1000", COLORS.NEON_BLUE, 28);
-            }
-            return;
-          }
-
-          if (invincibleFramesRef.current === 0) {
-            soundService.playCollision(obs.type);
-            createParticles(PLAYER_X, player.y, 30, COLORS.NEON_RED);
-            shakeRef.current = 25;
-            if (livesRef.current > 1) {
-              livesRef.current--; setLives(livesRef.current);
-              invincibleFramesRef.current = INVINCIBILITY_FRAMES;
-              soundService.playRespawn();
-              obstaclesRef.current.forEach(o => { if (o.x < width / 2) o.x -= width; });
-            } else {
-              livesRef.current = 0; setLives(0);
-              setDeathCause(Math.floor(scoreRef.current), "OPERATIONAL ERROR");
-              setGameState(GameState.GAME_OVER);
-            }
-            return;
-          }
-        }
-
-        if (!obs.passed && obs.x + obs.width < PLAYER_X) { obs.passed = true; }
-        if (obs.x < -150) obstaclesRef.current.splice(i, 1);
+  // --- Input Handlers ---
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        fireLaser();
       }
-    }
+      if (e.code === 'ArrowUp' || e.code === 'KeyW') startJump();
+      if (e.code === 'ArrowDown' || e.code === 'KeyS') startDuck();
+      if (isPortrait) {
+        if (e.code === 'ArrowLeft' || e.code === 'KeyA') laneRef.current = invertLane(Math.max(0, laneRef.current - 1));
+        if (e.code === 'ArrowRight' || e.code === 'KeyD') laneRef.current = invertLane(Math.min(2, laneRef.current + 1));
+      }
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'ArrowUp' || e.code === 'KeyW') endJump();
+      if (e.code === 'ArrowDown' || e.code === 'KeyS') endDuck();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => { window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); };
+  }, [fireLaser, startJump, endJump, startDuck, endDuck, isPortrait]);
 
-    for (let i = particlesRef.current.length - 1; i >= 0; i--) {
-      const p = particlesRef.current[i];
-      p.x += p.vx * relativeDelta;
-      p.y += p.vy * relativeDelta;
-      p.life -= 0.05 * relativeDelta;
-      if (p.life <= 0) particlesRef.current.splice(i, 1);
-    }
+  const invertLane = (lane: number) => {
+    if (controlsInvertedFramesRef.current <= 0) return lane;
+    if (lane === 0) return 2;
+    if (lane === 2) return 0;
+    return 1;
+  };
 
-    // Floating Text Update
-    for (let i = floatingTextsRef.current.length - 1; i >= 0; i--) {
-      const t = floatingTextsRef.current[i];
-      t.y += t.vy * relativeDelta;
-      t.life -= 0.015 * relativeDelta;
-      if (t.life <= 0) floatingTextsRef.current.splice(i, 1);
-    }
-  }, [gameState, setScore, setGameState, setDeathCause, setLives, setSynergy, setIsSynergyActive]);
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const now = Date.now();
+    const isDoubleTap = now - lastTapTimeRef.current < 250;
+    lastTapTimeRef.current = now;
 
+    touchStartRef.current = { y: e.touches[0].clientY, x: e.touches[0].clientX };
+    isDraggingRef.current = true;
+    if (isPortrait) {
+      if (isDoubleTap) fireLaser();
+      const pct = e.touches[0].clientX / dimensionsRef.current.width;
+      laneRef.current = (pct < 0.33) ? 0 : (pct > 0.66 ? 2 : 1);
+    } else {
+      if (isDoubleTap) fireLaser();
+      else startJump();
+    }
+  };
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartRef.current) return;
+    if (isPortrait) {
+      const pct = e.touches[0].clientX / dimensionsRef.current.width;
+      laneRef.current = (pct < 0.33) ? 0 : (pct > 0.66 ? 2 : 1);
+    } else {
+      if (e.touches[0].clientY - touchStartRef.current.y > SWIPE_THRESHOLD) startDuck();
+    }
+  };
+  const handleTouchEnd = () => { isDraggingRef.current = false; endJump(); endDuck(); touchStartRef.current = null; };
+
+  const handleMouseDown = () => {
+    const now = Date.now();
+    const isDoubleTap = now - lastTapTimeRef.current < 250;
+    lastTapTimeRef.current = now;
+    isDraggingRef.current = true;
+    if (isPortrait) {
+      if (isDoubleTap) fireLaser();
+    } else {
+      if (isDoubleTap) fireLaser();
+      else startJump();
+    }
+  };
+
+  const handleMouseUp = () => {
+    isDraggingRef.current = false;
+    endJump();
+  };
+
+  // --- Rendering ---
   const draw = useCallback((ctx: CanvasRenderingContext2D) => {
     const { width, height, groundY } = dimensionsRef.current;
-    const isSynergy = synergyActiveFramesRef.current > 0;
+    if (!ctx) return;
 
-    // --- BIOME PALETTE CALCULATION ---
-    const currentBiome = BIOMES[currentBiomeIndexRef.current];
+    const isSynergy = synergyActiveFramesRef.current > 0;
+    const biome = BIOMES[currentBiomeIndexRef.current];
     const nextBiome = BIOMES[nextBiomeIndexRef.current];
-    const t = biomeTransitionRef.current;
+    const transitionP = biomeTransitionRef.current;
 
     const p = {
-      background: t <= 0 ? currentBiome.palette.background : (t >= 1 ? nextBiome.palette.background : lerpColor(currentBiome.palette.background, nextBiome.palette.background, t)),
-      grid: t <= 0 ? currentBiome.palette.grid : (t >= 1 ? nextBiome.palette.grid : lerpColor(currentBiome.palette.grid, nextBiome.palette.grid, t)),
-      gridHighlight: t <= 0 ? currentBiome.palette.gridHighlight : (t >= 1 ? nextBiome.palette.gridHighlight : lerpColor(currentBiome.palette.gridHighlight, nextBiome.palette.gridHighlight, t)),
-      text: t <= 0 ? currentBiome.palette.text : (t >= 1 ? nextBiome.palette.text : lerpColor(currentBiome.palette.text, nextBiome.palette.text, t)),
-      obstacle: t <= 0 ? currentBiome.palette.obstacle : (t >= 1 ? nextBiome.palette.obstacle : lerpColor(currentBiome.palette.obstacle, nextBiome.palette.obstacle, t)),
-      particlePrimary: t <= 0 ? currentBiome.palette.particlePrimary : (t >= 1 ? nextBiome.palette.particlePrimary : lerpColor(currentBiome.palette.particlePrimary, nextBiome.palette.particlePrimary, t)),
-      particleSecondary: t <= 0 ? currentBiome.palette.particleSecondary : (t >= 1 ? nextBiome.palette.particleSecondary : lerpColor(currentBiome.palette.particleSecondary, nextBiome.palette.particleSecondary, t)),
+      background: lerpColor(biome.palette.background, nextBiome.palette.background, transitionP),
+      grid: lerpColor(biome.palette.grid, nextBiome.palette.grid, transitionP),
+      gridHighlight: lerpColor(biome.palette.gridHighlight, nextBiome.palette.gridHighlight, transitionP),
+      text: lerpColor(biome.palette.text, nextBiome.palette.text, transitionP),
+      obstacle: lerpColor(biome.palette.obstacle, nextBiome.palette.obstacle, transitionP),
+      primary: lerpColor(biome.palette.particlePrimary, nextBiome.palette.particlePrimary, transitionP),
+      secondary: lerpColor(biome.palette.particleSecondary, nextBiome.palette.particleSecondary, transitionP),
     };
 
-    const gridType = t > 0.5 ? nextBiome.atmosphere.gridType : currentBiome.atmosphere.gridType;
-
     ctx.save();
-    ctx.translate((Math.random() - 0.5) * shakeRef.current, (Math.random() - 0.5) * shakeRef.current);
+    if (shakeRef.current > 0) ctx.translate((Math.random() - 0.5) * shakeRef.current, (Math.random() - 0.5) * shakeRef.current);
 
-    // Background Fill
+    // Background
     ctx.fillStyle = p.background;
-    ctx.fillRect(-20, -20, width + 40, height + 40);
+    ctx.fillRect(0, 0, width, height);
 
-    // --- DYNAMIC BACKGROUND GRID ---
-    ctx.lineWidth = 1;
-    const gridSize = 60;
-    const scroll = (framesRef.current * speedRef.current * 0.8);
+    // Grid Rendering
+    const scroll = (framesRef.current * speedRef.current * 0.8) % 60;
+    const gridType = biome.atmosphere.gridType;
 
-    if (gridType === 'hex') {
-      // HEXAGONAL GRID (For Logistics/Management)
-      const hexTime = animTimeRef.current;
-      for (let i = 0; i < 5; i++) {
-        const hx = (width * 0.2 * i + hexTime * 50) % width;
-        const hy = (height * 0.3 * i + Math.sin(hexTime + i) * 50) % height;
-        ctx.strokeStyle = p.gridHighlight;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        for (let j = 0; j < 6; j++) {
-          const ang = j * Math.PI / 3;
-          const rx = hx + Math.cos(ang) * 30;
-          const ry = hy + Math.sin(ang) * 30;
-          if (j === 0) ctx.moveTo(rx, ry); else ctx.lineTo(rx, ry);
-        }
-        ctx.closePath(); ctx.stroke();
+    if (gridType === 'digital') {
+      ctx.fillStyle = p.grid; ctx.font = "12px 'Share Tech Mono'";
+      for (let x = 0; x < width; x += 40) {
+        const charScroll = (framesRef.current * 2 + x) % height;
+        ctx.fillText(Math.random() > 0.5 ? "1010" : "0101", x, charScroll);
       }
-
-      ctx.strokeStyle = p.grid; ctx.lineWidth = 1;
-      const gridOffset = scroll % gridSize;
-      if (isPortrait) {
-        for (let y = -gridOffset; y < height; y += gridSize) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
-      } else {
-        for (let x = -gridOffset; x < width; x += gridSize) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); }
-      }
-
-    } else if (gridType === 'digital') {
-      // DIGITAL/MATRIX RAIN
-      ctx.fillStyle = p.grid;
-      const colWidth = 20;
-      const numCols = Math.ceil(width / colWidth);
-      for (let i = 0; i < numCols; i++) {
-        if (i % 3 === 0) {
-          const streamY = (framesRef.current * (speedRef.current * 0.5 + Math.sin(i) * 2)) % (height + 200) - 100;
-          ctx.fillRect(i * colWidth, streamY, 2, 40);
-          if (Math.random() > 0.98) {
-            ctx.fillStyle = p.gridHighlight;
-            ctx.fillText(Math.random() > 0.5 ? "1" : "0", i * colWidth, streamY + 50);
-            ctx.fillStyle = p.grid;
-          }
-        }
-      }
-      ctx.strokeStyle = p.grid; ctx.lineWidth = 1;
-      const gridOffset = scroll % gridSize;
-      if (isPortrait) {
-        for (let y = -gridOffset; y < height; y += gridSize) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
-      } else {
-        for (let x = -gridOffset; x < width; x += gridSize) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); }
-      }
-
     } else {
-      // CLASSIC GRID
-      ctx.strokeStyle = isSynergy ? 'rgba(255,255,255,0.2)' : p.grid;
-      const gridOffset = scroll % gridSize;
-
+      ctx.strokeStyle = p.grid; ctx.lineWidth = 1;
       if (isPortrait) {
-        for (let y = -gridOffset; y < height; y += gridSize) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
-        for (let x = 0; x <= width; x += gridSize) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); }
-        const laneWidth = width * (PORTRAIT_LANE_WIDTH_PERCENT / 100);
+        for (let y = -scroll; y < height; y += 60) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
+        const lw = width * (PORTRAIT_LANE_WIDTH_PERCENT / 100);
         ctx.strokeStyle = p.gridHighlight; ctx.lineWidth = 2;
-        for (let i = 1; i < PORTRAIT_LANE_COUNT; i++) {
-          const x = i * laneWidth;
-          ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
-        }
+        for (let i = 1; i < 3; i++) { ctx.beginPath(); ctx.moveTo(i * lw, 0); ctx.lineTo(i * lw, height); ctx.stroke(); }
       } else {
-        for (let y = 0; y <= height; y += gridSize) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
-        for (let x = -gridOffset; x < width; x += gridSize) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); }
+        for (let x = -scroll; x < width; x += 60) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); }
+        ctx.strokeStyle = p.gridHighlight; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(0, groundY); ctx.lineTo(width, groundY); ctx.stroke();
       }
     }
 
-    // Draw Lasers (Beams) - Only in Portrait mode logic in original, but here we can keep it shared or check isPortrait
-    if (isPortrait) {
-      lasersRef.current.forEach(laser => {
-        const alpha = laser.life / laser.maxLife;
-        const beamWidth = width * (PORTRAIT_LANE_WIDTH_PERCENT / 100);
-        const x = laser.lane * beamWidth + (beamWidth / 2);
-        ctx.save();
-        ctx.globalAlpha = alpha;
-        const playerY = height - PORTRAIT_PLAYER_Y_OFFSET;
-        ctx.fillStyle = p.particlePrimary; // Use biome color
-        ctx.fillRect(x - 2, 0, 4, playerY);
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(x - 1, 0, 2, playerY);
-        ctx.shadowBlur = 20; ctx.shadowColor = p.particlePrimary;
-        ctx.fillRect(x - 2, 0, 4, height);
-        ctx.restore();
-      });
-    }
+    // Stars
+    starsRef.current.forEach(s => { ctx.fillStyle = `rgba(255, 255, 255, ${s.opacity})`; ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2); ctx.fill(); });
 
-    starsRef.current.forEach(star => {
-      ctx.fillStyle = `rgba(255, 255, 255, ${star.opacity})`;
-      // Optional: Tint stars?
-      // ctx.fillStyle = isSynergy ? '#fff' : p.particleSecondary;
-      ctx.beginPath(); ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2); ctx.fill();
-    });
-
-    if (gameState === GameState.MENU) { ctx.restore(); return; }
-
+    // Subliminal
     if (activeSubliminalRef.current) {
       const msg = activeSubliminalRef.current;
-      ctx.save(); ctx.globalAlpha = msg.opacity;
-      ctx.fillStyle = isSynergy ? '#fff' : p.text;
-      const fontSize = isPortrait ? 60 : 120;
-      ctx.font = `900 ${fontSize}px 'Rajdhani'`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.translate(width / 2, height / 2); ctx.scale(msg.scale, msg.scale); ctx.fillText(msg.text, 0, 0); ctx.restore();
+      ctx.save(); ctx.globalAlpha = msg.opacity; ctx.fillStyle = p.text;
+      ctx.font = `900 ${Math.floor(60 * msg.scale)}px 'Rajdhani'`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(msg.text, msg.x, msg.y); ctx.restore();
     }
 
-    if (!isPortrait) {
-      // Landscape Ground Line
-      ctx.strokeStyle = isSynergy ? '#fff' : p.gridHighlight;
-      ctx.lineWidth = 2;
-      ctx.shadowBlur = 15; ctx.shadowColor = ctx.strokeStyle;
-      ctx.beginPath(); ctx.moveTo(0, groundY); ctx.lineTo(width, groundY); ctx.stroke(); ctx.shadowBlur = 0;
-    }
-
-    // Credits Draw
+    // Credits
     creditsRef.current.forEach(c => {
-      ctx.save();
-      ctx.shadowBlur = 10; ctx.shadowColor = COLORS.NEON_YELLOW;
-      ctx.fillStyle = COLORS.NEON_YELLOW;
-      const spin = Math.sin(animTimeRef.current * 8);
-      ctx.translate(c.x, c.y);
-      ctx.scale(spin, 1);
-      ctx.beginPath(); ctx.moveTo(0, -10); ctx.lineTo(8, 0); ctx.lineTo(0, 10); ctx.lineTo(-8, 0); ctx.closePath(); ctx.fill();
+      ctx.save(); ctx.shadowBlur = 10; ctx.shadowColor = COLORS.NEON_YELLOW; ctx.fillStyle = COLORS.NEON_YELLOW;
+      const spin = Math.sin(animTimeRef.current * 10);
+      ctx.translate(c.x, c.y); ctx.scale(spin, 1);
+      ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(6, 0); ctx.lineTo(0, 8); ctx.lineTo(-6, 0); ctx.closePath(); ctx.fill();
       ctx.restore();
     });
 
-    const pl = playerRef.current; // Renamed from 'p' to 'pl' to avoid conflict with palette 'p'
-
-    if (isPortrait) {
-      // --- ENHANCED PORTRAIT PLAYER DRAW ---
-      const playerY = height - PORTRAIT_PLAYER_Y_OFFSET;
-      const size = PORTRAIT_PLAYER_SIZE;
-      const centerX = pl.laneX!;
-      const centerY = playerY + size / 2;
-
-      ctx.save();
-
-      // Jump Scale Effect
-      const jumpScale = 1 + (pl.altitude || 0) / 100;
-      const tiltAngle = (pl.altitude || 0) * 0.002;
-
-      ctx.translate(centerX, centerY);
-      ctx.rotate(tiltAngle);
-      ctx.scale(jumpScale, jumpScale);
-      ctx.translate(-centerX, -centerY);
-
-      // --- MULTI-LAYERED AURA SYSTEM ---
-      const meterRatio = Math.min(synergyMeterRef.current, 100) / 100;
-      const hasAura = synergyMeterRef.current > 0 || isSynergy;
-
-      if (hasAura) {
-        // Outer Aura Ring
-        const outerPulse = 0.9 + Math.sin(animTimeRef.current * 8) * 0.1;
-        const outerRadius = (size / 2) * (2.2 * outerPulse);
-        const outerGlow = ctx.createRadialGradient(centerX, centerY, size / 2, centerX, centerY, outerRadius);
-
-        if (isSynergy) {
-          outerGlow.addColorStop(0, 'rgba(255, 255, 255, 0.3)');
-          outerGlow.addColorStop(0.5, 'rgba(120, 220, 255, 0.15)');
-          outerGlow.addColorStop(1, 'rgba(255, 255, 255, 0)');
-        } else {
-          // Use biome primary color alpha for aura
-          // Handle both rgb and rgba
-          let color = p.particlePrimary;
-          if (color.startsWith('rgba')) {
-            // Just replace the alpha value (last number)
-            // simplified: replace the last number with 0.3
-            // or just replace ')' with ', 0.3)' IS WRONG for rgba.
-            // safest quick hack: parse it or just blindly use it?
-            // The error was rgbaa, implies replace('rgb', 'rgba') ran on 'rgba'.
-            // If we just want 0.3 alpha, and it's already rgba, we need to replace the existing alpha.
-            // Hack: force it to be a specific overlay color or just use a simple string replacement that works for both.
-            // If we assume standard format:
-            color = color.replace('rgb(', 'rgba(').replace('rgbaa', 'rgba').replace(')', ', 0.3)').replace(', 1, 0.3)', ', 0.3)');
-            // That's getting messy. 
-            // Better: Use the lerpColor helper? No, that mixes two colors.
-            // Let's just hardcode a known good visual equivalent for now or correct the replacement.
-            // If input is "rgba(r, g, b, 1)", replacing 'rgb' -> 'rgba' gives "rgbaa(r, g, b, 1)".
-            // We want "rgba(r, g, b, 0.3)".
-
-            // Clean fix:
-            if (color.startsWith('rgb(')) {
-              color = color.replace('rgb(', 'rgba(').replace(')', ', 0.3)');
-            } else if (color.startsWith('rgba(')) {
-              // assume format rgba(r,g,b,a) -> replace last number?
-              // Easier: just replace the 'a' part.
-              const lastComma = color.lastIndexOf(',');
-              if (lastComma !== -1) {
-                color = color.substring(0, lastComma) + ', 0.3)';
-              }
-            }
-            outerGlow.addColorStop(0, color);
-          } else {
-            // Fallback or hex?
-            outerGlow.addColorStop(0, 'rgba(34, 211, 238, 0.3)');
-          }
-          outerGlow.addColorStop(1, 'rgba(0,0,0,0)');
-        }
-
-        ctx.fillStyle = outerGlow;
-        ctx.beginPath(); ctx.arc(centerX, centerY, outerRadius, 0, Math.PI * 2); ctx.fill();
-
-        // Particles
-        const particleCount = isSynergy ? 12 : Math.floor(8 * meterRatio);
-        for (let i = 0; i < particleCount; i++) {
-          const angle = (i / particleCount) * Math.PI * 2 + animTimeRef.current * 3;
-          const radius = size * (isSynergy ? 1.4 : 1.2);
-          const px = centerX + Math.cos(angle) * radius;
-          const py = centerY + Math.sin(angle) * radius;
-          ctx.save();
-          ctx.globalAlpha = isSynergy ? 0.8 : 0.4 * meterRatio;
-          ctx.shadowBlur = 15;
-          ctx.shadowColor = isSynergy ? '#fff' : p.particlePrimary;
-          ctx.fillStyle = isSynergy ? '#fff' : p.particlePrimary;
-          ctx.beginPath(); ctx.arc(px, py, isSynergy ? 3 : 2, 0, Math.PI * 2); ctx.fill();
-          ctx.restore();
-        }
-
-        // Energy Rings
-        if (isSynergy) {
-          for (let ring = 0; ring < 2; ring++) {
-            const ringOffset = ring * Math.PI;
-            const ringRadius = size * (1.1 + ring * 0.15);
-            const ringAlpha = 0.6 - ring * 0.2;
-            ctx.save();
-            ctx.globalAlpha = ringAlpha + Math.sin(animTimeRef.current * 6 + ringOffset) * 0.2;
-            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.shadowBlur = 20; ctx.shadowColor = '#fff';
-            ctx.beginPath(); ctx.arc(centerX, centerY, ringRadius, 0, Math.PI * 2); ctx.stroke();
-            ctx.restore();
-          }
-        }
-      }
-
-      // Laser Cooldown Arc
-      if (laserCooldownRef.current > 0) {
-        ctx.save();
-        const cooldownPct = laserCooldownRef.current / LASER_COOLDOWN_FRAMES;
-        ctx.translate(centerX, centerY);
-        // Background
-        ctx.beginPath(); ctx.arc(0, 0, size * 0.85, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(100, 100, 100, 0.3)'; ctx.lineWidth = 4; ctx.stroke();
-        // Progress
-        ctx.beginPath(); ctx.arc(0, 0, size * 0.85, -Math.PI / 2, (-Math.PI / 2) + (Math.PI * 2 * (1 - cooldownPct)));
-        const arcGlow = ctx.createLinearGradient(0, -size, 0, size);
-        arcGlow.addColorStop(0, COLORS.NEON_CYAN);
-        arcGlow.addColorStop(1, 'rgba(34, 211, 238, 0.6)');
-        ctx.strokeStyle = arcGlow; ctx.lineWidth = 4; ctx.shadowBlur = 10; ctx.shadowColor = COLORS.NEON_CYAN;
-        ctx.globalAlpha = 0.9; ctx.stroke();
-        ctx.restore();
-      }
-
-      // Player Body
-      if (isSynergy) {
-        ctx.save();
-        ctx.shadowBlur = 40; ctx.shadowColor = '#fff'; ctx.fillStyle = '#fff';
-        const synergyPulse = 1 + Math.sin(animTimeRef.current * 15) * 0.05;
-        ctx.translate(centerX, centerY); ctx.scale(synergyPulse, synergyPulse); ctx.translate(-centerX, -centerY);
-        ctx.beginPath(); ctx.moveTo(centerX, centerY - size / 2); ctx.lineTo(centerX + size / 2, centerY); ctx.lineTo(centerX, centerY + size / 2); ctx.lineTo(centerX - size / 2, centerY); ctx.closePath(); ctx.fill();
-        ctx.restore();
-      } else {
-        // Normal Mode - Biome Colored
-        ctx.save();
-        ctx.fillStyle = p.particlePrimary; // Body main color
-        ctx.shadowBlur = 20; ctx.shadowColor = p.particlePrimary;
-        ctx.beginPath(); ctx.moveTo(centerX, centerY - size / 2); ctx.lineTo(centerX + size / 2, centerY); ctx.lineTo(centerX, centerY + size / 2); ctx.lineTo(centerX - size / 2, centerY); ctx.closePath(); ctx.fill();
-
-        // Inner Detail
-        ctx.fillStyle = p.particleSecondary;
-        ctx.beginPath(); ctx.arc(centerX, centerY, size / 4, 0, Math.PI * 2); ctx.fill();
-        ctx.restore();
-      }
-
-      // Trail
-      if (!pl.isGrounded || (pl.altitude || 0) > 5) {
-        const trailIntensity = Math.min((pl.altitude || 0) / 50, 1);
-        const trailY = centerY + size / 2 + 5;
-        for (let i = 0; i < 3; i++) {
-          const offset = i * 8;
-          ctx.save();
-          ctx.globalAlpha = (1 - i * 0.3) * trailIntensity * 0.7;
-          ctx.fillStyle = p.particlePrimary;
-          ctx.beginPath(); ctx.arc(centerX, trailY + offset, (8 - i * 2), 0, Math.PI * 2); ctx.fill();
-          ctx.restore();
-        }
-      }
-
-      ctx.restore();
-
-    } else {
-      // --- LANDSCAPE PLAYER DRAW ---
-      const ph = pl.isDucking ? PLAYER_HEIGHT_DUCKING : PLAYER_HEIGHT_STANDING;
-      const pulse = Math.sin(animTimeRef.current * 10) * 2;
-
-      ctx.save();
-      if (invincibleFramesRef.current > 0) ctx.globalAlpha = Math.sin(animTimeRef.current * 30) * 0.5 + 0.5;
-
-      // Aura
-      if (synergyMeterRef.current > 0 || isSynergy) {
-        ctx.save();
-        const meterRatio = Math.min(synergyMeterRef.current, 100) / 100;
-        const auraOpacity = isSynergy ? 0.5 + Math.sin(animTimeRef.current * 12) * 0.2 : meterRatio * 0.3;
-        const auraBaseColor = isSynergy ? '255, 255, 255' : '34, 211, 238'; // Maybe use biome color too?
-        ctx.shadowBlur = isSynergy ? 30 : 15 * meterRatio;
-        ctx.shadowColor = `rgba(${auraBaseColor}, ${isSynergy ? 1 : meterRatio})`;
-        ctx.fillStyle = `rgba(${auraBaseColor}, ${auraOpacity})`;
-        ctx.fillRect(PLAYER_X - 5, pl.y - 5, PLAYER_WIDTH + 10, ph + 10);
-        ctx.restore();
-      }
-
-      if (isSynergy) {
-        ctx.shadowBlur = 30; ctx.shadowColor = '#fff'; ctx.fillStyle = '#fff';
-        ctx.fillRect(PLAYER_X - pulse, pl.y - pulse, PLAYER_WIDTH + pulse * 2, ph + pulse * 2);
-      } else {
-        ctx.shadowBlur = 15; ctx.shadowColor = p.particlePrimary; ctx.fillStyle = p.particlePrimary;
-        ctx.fillRect(PLAYER_X, pl.y, PLAYER_WIDTH, ph);
-      }
-      ctx.restore();
-    }
-
+    // Obstacles
     obstaclesRef.current.forEach(obs => {
       if (obs.shattered) return;
       ctx.save();
-      ctx.shadowBlur = 15;
+      const obsColor = (obs.type === ObstacleType.POWERUP) ? POWERUP_CONFIG[obs.powerupType!].color : p.obstacle;
+      ctx.shadowBlur = 15; ctx.shadowColor = obsColor; ctx.fillStyle = obsColor;
 
-      if (obs.type === ObstacleType.HOVER_MINE) {
-        // Mine
-        const bob = Math.sin((animTimeRef.current * 5) + obs.frameOffset) * 5;
-        ctx.shadowColor = COLORS.NEON_RED; ctx.fillStyle = '#333';
-        // Mines stay red/danger color usually? Or use biome obstacle color?
-        // Let's keep mines RED for danger, but maybe tint?
-        // Using biome obstacle color might be better for cohesion.
-        const obsColor = p.obstacle;
-        ctx.shadowColor = obsColor;
-
-        const cx = isPortrait ? obs.x + obs.width / 2 : obs.x + 15;
-        const cy = isPortrait ? obs.y + obs.height / 2 : obs.y + 15 + bob;
-        const rad = isPortrait ? obs.width / 2 : 15;
-
-        ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = obsColor; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2); ctx.stroke();
-
-      } else if (obs.type === ObstacleType.LIFE_PACK) {
+      if (obs.type === ObstacleType.LIFE_PACK) {
         ctx.shadowColor = COLORS.NEON_GREEN; ctx.shadowBlur = 15; ctx.fillStyle = '#0f0';
         const scale = 1 + Math.sin(animTimeRef.current * 6) * 0.2;
         const centerX = obs.x + obs.width / 2;
         const centerY = obs.y + obs.height / 2;
-        ctx.translate(centerX, centerY); ctx.scale(scale, scale);
+        ctx.save(); ctx.translate(centerX, centerY); ctx.scale(scale, scale);
         ctx.fillRect(-obs.width / 3, -obs.height / 8, obs.width / 1.5, obs.height / 4);
         ctx.fillRect(-obs.width / 8, -obs.height / 3, obs.width / 4, obs.height / 1.5);
-        ctx.translate(-centerX, -centerY);
+        ctx.restore();
+      } else if (obs.type === ObstacleType.HOVER_MINE) {
+        const bob = Math.sin((animTimeRef.current * 5) + (obs.frameOffset || 0)) * 5;
+        ctx.shadowColor = COLORS.NEON_RED; ctx.fillStyle = '#333';
+        const cx = obs.x + obs.width / 2;
+        const cy = obs.y + obs.height / 2 + (isPortrait ? 0 : bob);
+        const rad = Math.min(obs.width, obs.height) / 2.5;
+
+        ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = COLORS.NEON_RED; ctx.lineWidth = 2;
+        for (let i = 0; i < 8; i++) {
+          const a = i * Math.PI / 4;
+          ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * rad, cy + Math.sin(a) * rad);
+          ctx.lineTo(cx + Math.cos(a) * rad * 1.5, cy + Math.sin(a) * rad * 1.5); ctx.stroke();
+        }
+      } else if (obs.type === ObstacleType.GLASS_CEILING) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)'; ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+        ctx.strokeStyle = p.obstacle; ctx.lineWidth = 4; ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)'; ctx.lineWidth = 1;
+        for (let gy = obs.y + 5; gy < obs.y + obs.height; gy += 10) {
+          ctx.beginPath(); ctx.moveTo(obs.x, gy); ctx.lineTo(obs.x + obs.width, gy); ctx.stroke();
+        }
+      } else if (obs.type === ObstacleType.DATA_CORRUPTER) {
+        const size = obs.width;
+        ctx.save(); ctx.translate(obs.x + size / 2, obs.y + size / 2);
+        ctx.rotate(animTimeRef.current * 5); ctx.shadowBlur = 25; ctx.shadowColor = COLORS.NEON_PURPLE;
+        ctx.fillStyle = Math.sin(animTimeRef.current * 20) > 0 ? COLORS.NEON_PURPLE : '#fff';
+        ctx.fillRect(-size / 2, -size / 2, size, size); ctx.restore();
+      } else if (obs.type === ObstacleType.POWERUP) {
+        const pType = obs.powerupType || PowerupType.SHIELD;
+        const color = POWERUP_CONFIG[pType].color;
+        const centerX = obs.x + obs.width / 2;
+        const centerY = obs.y + obs.height / 2;
+        const rad = Math.min(obs.width, obs.height) / 2;
+
+        ctx.shadowColor = color; ctx.shadowBlur = 20;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.beginPath(); ctx.arc(centerX, centerY, rad, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.stroke();
+
+        // Icon Symbol
+        ctx.fillStyle = color; ctx.font = `bold ${Math.floor(rad * 1.2)}px 'Rajdhani'`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(pType === PowerupType.SHIELD ? 'S' : 'R', centerX, centerY);
       } else {
         // Standard Drone / Obstacle
         ctx.shadowColor = p.obstacle; ctx.fillStyle = '#111';
         ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
-        ctx.fillStyle = p.obstacle;
+        const blink = Math.sin(animTimeRef.current * 12) > 0;
+        ctx.fillStyle = blink ? p.obstacle : '#000';
         ctx.beginPath(); ctx.arc(obs.x + obs.width / 2, obs.y + obs.height / 2, 4, 0, Math.PI * 2); ctx.fill();
       }
       ctx.restore();
     });
 
-    particlesRef.current.forEach(pt => { // Renamed 'p' to 'pt'
-      ctx.fillStyle = pt.color;
-      ctx.globalAlpha = pt.life; ctx.fillRect(pt.x, pt.y, 4, 4); ctx.globalAlpha = 1;
-    });
-
-    // Floating Text
-    floatingTextsRef.current.forEach(t => {
-      ctx.save();
-      ctx.globalAlpha = t.life;
-      ctx.font = `900 ${t.fontSize}px 'Rajdhani'`;
-      ctx.fillStyle = t.color;
-      ctx.strokeStyle = '#000'; ctx.lineWidth = 3;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.strokeText(t.text, t.x, t.y);
-      ctx.fillText(t.text, t.x, t.y);
+    // Lasers
+    lasersRef.current.forEach(l => {
+      ctx.save(); ctx.globalAlpha = l.life / l.maxLife; ctx.shadowBlur = 20; ctx.shadowColor = COLORS.NEON_CYAN;
+      ctx.fillStyle = '#fff'; ctx.strokeStyle = COLORS.NEON_CYAN; ctx.lineWidth = 4;
+      if (isPortrait) {
+        const lw = width * (PORTRAIT_LANE_WIDTH_PERCENT / 100);
+        const lx = l.lane * lw + lw / 2;
+        ctx.beginPath(); ctx.moveTo(lx, 0); ctx.lineTo(lx, height); ctx.stroke();
+      } else {
+        ctx.beginPath(); ctx.moveTo(PLAYER_X + PLAYER_WIDTH, playerRef.current.y + 15); ctx.lineTo(width, playerRef.current.y + 15); ctx.stroke();
+      }
       ctx.restore();
     });
 
-    // Vignette
+    // Player
+    const pl = playerRef.current;
+    ctx.save();
+    if (invincibleFramesRef.current > 0) ctx.globalAlpha = 0.5 + Math.sin(animTimeRef.current * 30) * 0.3;
+
+    if (isPortrait) {
+      const cx = pl.laneX!;
+      const cy = height - PORTRAIT_PLAYER_Y_OFFSET - (pl.altitude || 0);
+
+      if (isSynergy || pl.activeEffectType) {
+        const auraColor = isSynergy ? '#fff' : (pl.activeEffectType === PowerupType.REFLECT ? POWERUP_CONFIG.REFLECT.color : POWERUP_CONFIG.SHIELD.color);
+        ctx.save(); ctx.shadowBlur = 30; ctx.shadowColor = auraColor; ctx.fillStyle = auraColor + '44';
+        ctx.beginPath(); ctx.arc(cx, cy, 30 + Math.sin(animTimeRef.current * 15) * 5, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      }
+
+      ctx.fillStyle = p.primary; ctx.shadowBlur = 20; ctx.shadowColor = p.primary;
+      ctx.beginPath(); ctx.moveTo(cx, cy - 20); ctx.lineTo(cx + 20, cy); ctx.lineTo(cx, cy + 20); ctx.lineTo(cx - 20, cy); ctx.closePath(); ctx.fill();
+
+      // Trail
+      if (!pl.isGrounded || (pl.altitude || 0) > 5) {
+        const trailIntensity = Math.min((pl.altitude || 0) / 50, 1);
+        for (let i = 0; i < 3; i++) {
+          ctx.save(); ctx.globalAlpha = (1 - i * 0.3) * trailIntensity * 0.5;
+          ctx.beginPath(); ctx.arc(cx, cy + 25 + i * 10, 8 - i * 2, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+        }
+      }
+
+      if (pl.hasShield) {
+        ctx.strokeStyle = POWERUP_CONFIG.SHIELD.color; ctx.lineWidth = 3; ctx.beginPath();
+        for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; ctx.lineTo(cx + 35 * Math.cos(a), cy + 35 * Math.sin(a)); }
+        ctx.closePath(); ctx.stroke();
+      }
+      if (pl.activeEffectType === PowerupType.REFLECT) {
+        ctx.save();
+        ctx.strokeStyle = POWERUP_CONFIG.REFLECT.color; ctx.lineWidth = 4; ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; ctx.lineTo(cx + 45 * Math.cos(a), cy + 45 * Math.sin(a)); }
+        ctx.closePath(); ctx.stroke();
+        ctx.restore();
+      }
+    } else {
+      const ph = pl.isDucking ? PLAYER_HEIGHT_DUCKING : PLAYER_HEIGHT_STANDING;
+      ctx.fillStyle = p.primary; ctx.shadowBlur = 15; ctx.shadowColor = p.primary;
+      ctx.fillRect(PLAYER_X, pl.y, PLAYER_WIDTH, ph);
+
+      if (pl.hasShield) {
+        ctx.strokeStyle = POWERUP_CONFIG.SHIELD.color; ctx.lineWidth = 3;
+        ctx.strokeRect(PLAYER_X - 5, pl.y - 5, PLAYER_WIDTH + 10, ph + 10);
+      }
+      if (pl.activeEffectType === PowerupType.REFLECT) {
+        ctx.strokeStyle = POWERUP_CONFIG.REFLECT.color; ctx.lineWidth = 4; ctx.setLineDash([5, 5]);
+        ctx.strokeRect(PLAYER_X - 10, pl.y - 10, PLAYER_WIDTH + 20, ph + 20);
+      }
+    }
+    ctx.restore();
+
+    // Boss
+    if (bossRef.current) {
+      const b = bossRef.current;
+      ctx.save(); ctx.shadowBlur = 30; ctx.shadowColor = b.phase === BossPhase.ATTACKING ? COLORS.NEON_RED : COLORS.NEON_PURPLE;
+      ctx.fillStyle = b.phase === BossPhase.ATTACKING ? COLORS.NEON_RED : COLORS.NEON_PURPLE;
+      ctx.fillRect(b.x - b.width / 2, b.y - b.height / 2, b.width, b.height);
+
+      const hpy = b.y - b.height / 2 - 20;
+      const barWidth = 120; const segmentGap = 4;
+      const segmentWidth = (barWidth - (b.maxHealth - 1) * segmentGap) / b.maxHealth;
+      for (let i = 0; i < b.maxHealth; i++) {
+        ctx.fillStyle = i < b.health ? COLORS.NEON_RED : '#333';
+        ctx.fillRect(b.x - barWidth / 2 + i * (segmentWidth + segmentGap), hpy, segmentWidth, 8);
+      }
+
+      if (b.phase === BossPhase.PREPARING_ATTACK) {
+        ctx.fillStyle = `rgba(255,0,0, ${0.1 + b.beamChargeLevel * 0.4})`;
+        if (isPortrait) { const lw = width * (PORTRAIT_LANE_WIDTH_PERCENT / 100); ctx.fillRect(b.targetLane * lw, 0, lw, height); }
+        else { ctx.fillRect(0, b.targetLane - 30, width, 60); }
+      } else if (b.phase === BossPhase.ATTACKING) {
+        ctx.fillStyle = '#fff'; ctx.shadowBlur = 40; ctx.shadowColor = COLORS.NEON_RED;
+        if (isPortrait) { const lw = width * (PORTRAIT_LANE_WIDTH_PERCENT / 100); ctx.fillRect(b.targetLane * lw + lw / 2 - 10, 0, 20, height); }
+        else { ctx.fillRect(0, b.targetLane - 10, width, 20); }
+      }
+      ctx.restore();
+    }
+
+    // SYSTEM VERIFICATION
+    ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.font = "900 12px 'Rajdhani'"; ctx.textAlign = 'right';
+    ctx.fillText("V-CORP OS v2.0.6-MASTER", width - 20, 20);
+
+    // Floating Texts
+    floatingTextsRef.current.forEach(t => {
+      ctx.save(); ctx.globalAlpha = t.life; ctx.fillStyle = t.color; ctx.font = `900 ${t.fontSize}px 'Rajdhani'`;
+      ctx.textAlign = 'center'; ctx.fillText(t.text, t.x, t.y); ctx.restore();
+    });
+
+    // Particles
+    particlesRef.current.forEach(part => { ctx.fillStyle = part.color; ctx.globalAlpha = part.life; ctx.fillRect(part.x, part.y, 4, 4); });
+
+    // Synergy Vignette
     if (isSynergy) {
       ctx.save();
       const gradient = ctx.createRadialGradient(width / 2, height / 2, Math.min(width, height) * 0.3, width / 2, height / 2, Math.max(width, height) * 0.7);
       const pulse = Math.sin(animTimeRef.current * 6) * 0.3 + 0.5;
       gradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
       gradient.addColorStop(1, `rgba(0, 240, 255, ${pulse * 0.3})`);
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, width, height);
-      ctx.restore();
-    }
-
-    // Biome Transition Overlay (Flash effect on change?)
-    // Could add here if we want a full screen flash when biome changes
-    if (biomeTransitionRef.current > 0 && biomeTransitionRef.current < 1) {
-      // Optional: Subtle white flash at peak transition?
+      ctx.fillStyle = gradient; ctx.fillRect(0, 0, width, height); ctx.restore();
     }
 
     ctx.restore();
-  }, [gameState, isPortrait]);
+  }, [isPortrait, synergyActiveFramesRef, currentBiomeIndexRef, nextBiomeIndexRef, biomeTransitionRef, framesRef, speedRef, animTimeRef, starsRef, creditsRef, obstaclesRef, lasersRef, playerRef, invincibleFramesRef, bossRef, floatingTextsRef, particlesRef]);
 
   const loop = useCallback((time: number) => {
     if (!lastTimeRef.current) lastTimeRef.current = time;
-    const deltaTime = time - lastTimeRef.current;
+    const deltaTimeLimit = 2.0;
+    const dt = Math.min(deltaTimeLimit, (time - lastTimeRef.current) / (1000 / 60));
     lastTimeRef.current = time;
-
-    // Target 60 FPS (16.67ms per frame). 
-    // If deltaTime is 16.67ms, relativeDelta = 1.0.
-    // If 144Hz (6.94ms), relativeDelta = 0.41.
-    const relativeDelta = deltaTime / (1000 / 60);
-
-    // Update animation time (independent of game speed logic, strictly real-time seconds)
-    animTimeRef.current += deltaTime / 1000;
-
-    if (gameState === GameState.PLAYING) update(relativeDelta);
+    if (gameState === GameState.PLAYING) update(dt);
     const ctx = canvasRef.current?.getContext('2d');
     if (ctx) draw(ctx);
     requestRef.current = requestAnimationFrame(loop);
@@ -1377,44 +1045,62 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
 
   useEffect(() => {
     requestRef.current = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(requestRef.current!);
+    return () => cancelAnimationFrame(requestRef.current);
   }, [loop]);
 
   useEffect(() => {
-    if (gameState === GameState.PLAYING && prevGameState.current !== GameState.PAUSED) {
-      resetGame();
-    } else if (gameState === GameState.MENU) {
+    if (gameState === GameState.PLAYING && prevGameState.current === GameState.MENU) {
       resetGame();
     }
     prevGameState.current = gameState;
-  }, [gameState]);
+  }, [gameState, resetGame]);
+
+  useEffect(() => {
+    resetGame();
+  }, [resetGame]);
 
   return (
-    <div ref={containerRef} className="w-full h-full relative bg-black touch-none">
-      <canvas ref={canvasRef} className="block w-full h-full outline-none"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onMouseDown={handleMouseDown}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseLeave}
-      />
-      {guideVisible && gameState === GameState.PLAYING && (
-        <ControlsGuidance mode="overlay" isPortrait={isPortrait} />
-      )}
+    <div ref={containerRef} className="w-full h-full relative bg-black overflow-hidden font-['Rajdhani']">
+      <canvas ref={canvasRef} className="block w-full h-full"
+        onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
+        onMouseDown={handleMouseDown} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} />
+
       {gameState === GameState.PAUSED && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-[60] backdrop-blur-[2px]">
-          <div className="flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-300">
-            <h2 className="text-4xl font-black text-white tracking-[0.2em] uppercase italic">System Paused</h2>
-            <p className="text-cyan-400 font-mono text-xs tracking-widest animate-pulse">Awaiting Interaction to Resume</p>
+        <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-md z-50">
+          <div className="text-center animate-in zoom-in duration-300">
+            <h2 className="text-5xl font-black text-white italic tracking-tighter mb-8">SYSTEM PAUSED</h2>
+            <button onClick={() => setGameState(GameState.PLAYING)} className="px-12 py-4 bg-cyan-500 text-black font-black uppercase skew-x-[-12deg] hover:bg-white transition-colors">RESUME MISSION</button>
           </div>
         </div>
       )}
-      {gameState === GameState.PLAYING && (
-        <div className="absolute top-24 right-4 text-right pointer-events-none">
-          <div className="text-[8px] text-gray-500 font-mono tracking-widest uppercase">Dept. Zone</div>
-          <div className="text-xl font-bold font-mono animate-pulse" style={{ color: BIOMES[stageRef.current].palette.text }}>
-            {BIOMES[stageRef.current].name}
+
+      {bossHint && gameState === GameState.PLAYING && (
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 z-40 pointer-events-none animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="relative">
+            {/* Corner brackets */}
+            <div className="absolute -top-2 -left-2 w-4 h-4 border-t-2 border-l-2 border-cyan-400"></div>
+            <div className="absolute -top-2 -right-2 w-4 h-4 border-t-2 border-r-2 border-cyan-400"></div>
+            <div className="absolute -bottom-2 -left-2 w-4 h-4 border-b-2 border-l-2 border-cyan-400"></div>
+            <div className="absolute -bottom-2 -right-2 w-4 h-4 border-b-2 border-r-2 border-cyan-400"></div>
+
+            {/* Glow effect */}
+            <div className="absolute inset-0 bg-cyan-500/20 blur-xl animate-pulse"></div>
+
+            {/* Main content */}
+            <div className="relative bg-gradient-to-br from-cyan-950/60 to-black/80 border border-cyan-400/50 backdrop-blur-md px-6 sm:px-8 py-3 sm:py-4 skew-x-[-8deg]">
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 bg-cyan-400 animate-pulse rounded-full shadow-[0_0_10px_rgba(34,211,238,0.8)]"></div>
+                <span className="text-cyan-400 font-black uppercase tracking-[0.3em] text-xs sm:text-base md:text-lg whitespace-nowrap drop-shadow-[0_0_15px_rgba(34,211,238,0.6)]">
+                  {bossHint}
+                </span>
+                <div className="w-2 h-2 bg-cyan-400 animate-pulse rounded-full shadow-[0_0_10px_rgba(34,211,238,0.8)]"></div>
+              </div>
+
+              {/* Scan line effect */}
+              <div className="absolute inset-0 overflow-hidden opacity-30">
+                <div className="absolute w-full h-px bg-gradient-to-r from-transparent via-cyan-400 to-transparent animate-[scan_2s_ease-in-out_infinite]"></div>
+              </div>
+            </div>
           </div>
         </div>
       )}

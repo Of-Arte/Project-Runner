@@ -17,90 +17,90 @@ const TerminationScreen: React.FC<TerminationScreenProps> = ({ score, cause, onR
     const intScore = Math.floor(score);
     if (intScore < 10000) {
       return {
-        title: "RECYCLING PROTOCOL",
-        message: "Your run shows early potential but needs refinement. We're reassigning you to our observation program where you can study the patterns without the pressure. Take your time. Learn the rhythm. Come back stronger.",
-        rating: "IN TRAINING",
-        allocation: "Observation Program",
+        title: "INITIAL CALIBRATION",
+        message: "Every master starts somewhere. Your neural pathways are still forming, but we've detected flickers of potential. The simulation adapts to those who persist. Return to the grid and let muscle memory take over.",
+        rating: "NOVICE",
+        allocation: "Foundation Track",
         id: "EVAL-0089"
       };
     } else if (intScore < 20000) {
       return {
-        title: "OPERATIONAL ASSET",
-        message: "You've proven you can survive the basics. Now you need to push further. Your reflexes are there but your timing needs work. The next level requires precision. Get back in and show us what you learned.",
-        rating: "baseline met",
-        allocation: "Active Training",
+        title: "PATTERN RECOGNITION",
+        message: "You're beginning to see the rhythm beneath the chaos. The obstacles aren't random—they're testing your ability to predict and adapt. Your instincts are sharpening. Push deeper into the flow state.",
+        rating: "DEVELOPING",
+        allocation: "Adaptive Training",
         id: "EVAL-0214"
       };
     } else if (intScore < 30000) {
       return {
-        title: "PROFICIENCY CANDIDATE",
-        message: "Strong performance. You're adapting to the simulation faster than most. Your pattern recognition is solid and your reaction time is improving. You're ready for the advanced scenarios. Keep this momentum going.",
+        title: "SYNAPSE ACCELERATION",
+        message: "Impressive. Your reaction windows are tightening and your decision trees are pruning themselves. You're entering the zone where thought and action blur together. This is where real growth happens.",
         rating: "PROFICIENT",
-        allocation: "Evolution Track",
+        allocation: "Neural Enhancement",
         id: "EVAL-0432"
       };
     } else if (intScore < 40000) {
       return {
-        title: "VALUED RESOURCE",
-        message: "Your efficiency rating is officially climbing. You've hit a stride that most units fail to ever see. Management is impressed with your tactical navigation. Don't let up now—greatness is within reach.",
-        rating: "VALUED",
-        allocation: "Tier 2 Command",
+        title: "FLOW STATE ACHIEVED",
+        message: "You've crossed into territory most never reach. The simulation is no longer fighting you—you're dancing with it. Your movements have become elegant, efficient, almost prescient. The system recognizes excellence.",
+        rating: "ADVANCED",
+        allocation: "Elite Conditioning",
         id: "EVAL-0612"
       };
     } else if (intScore < 50000) {
       return {
-        title: "ELITE CONTENDER",
-        message: "Exceptional run. You've demonstrated mastery of the fundamentals and you're pushing into expert territory. This level of performance puts you in the top tier. You're ready for the next phase of evolution. Let's see how far you can go.",
+        title: "APEX PERFORMANCE",
+        message: "Outstanding execution. You're operating at the edge of human capability, where milliseconds separate triumph from termination. Your spatial awareness and timing are approaching theoretical limits. The next tier awaits.",
         rating: "ELITE",
-        allocation: "Elite Program",
+        allocation: "Mastery Protocol",
         id: "EVAL-0954"
       };
     } else if (intScore < 60000) {
       return {
-        title: "SENIOR EVALUATOR",
-        message: "You are no longer just an asset; you are a benchmark. Your results are being used to calibrate new units. Your understanding of the system's weaknesses is becoming a strength we can't ignore. Continue your path.",
-        rating: "SENIOR",
-        allocation: "Strategic Review",
+        title: "SYSTEM ANOMALY",
+        message: "Your performance metrics are triggering alerts across our monitoring network. You're not just playing the game—you're rewriting its rules. We're studying your patterns to improve future simulations. Remarkable.",
+        rating: "EXCEPTIONAL",
+        allocation: "Research Division",
         id: "EVAL-1248"
       };
     } else if (intScore < 70000) {
       return {
-        title: "EXECUTIVE CLASS",
-        message: "Management has taken direct notice of your output. Your performance curves are unprecedented in this sector. You're handling complexity with a grace that suggests organic limitations are behind you.",
-        rating: "EXECUTIVE",
-        allocation: "Global Operations",
+        title: "TRANSCENDENT OPERATOR",
+        message: "The line between player and simulation has dissolved. You're no longer reacting to obstacles—you're predicting their emergence before they spawn. This level of precognition suggests you've tapped into something deeper.",
+        rating: "VIRTUOSO",
+        allocation: "Quantum Analytics",
         id: "EVAL-1590"
       };
     } else if (intScore < 80000) {
       return {
-        title: "SYSTEM OVERSEER",
-        message: "You've reached a level of field expertise that makes traditional monitoring obsolete. You are anticipating system adjustments before they occur. Your contribution to V-Corp is now considered vital infrastructure.",
-        rating: "OVERSEER",
-        allocation: "Autonomous Command",
+        title: "REALITY ARCHITECT",
+        message: "You've achieved what our designers thought impossible. The simulation bends around your will. Every lane change, every jump is executed with surgical precision. You're not surviving—you're conducting a symphony of motion.",
+        rating: "LEGENDARY",
+        allocation: "Infinity Division",
         id: "EVAL-2100"
       };
     } else if (intScore < 90000) {
       return {
-        title: "INFRASTRUCTURE PILLAR",
-        message: "Your existence is now woven into the core logic of the simulation. You have surpassed standard survival metrics and reached a state of perpetual optimization. Your data is our most prized structural asset.",
-        rating: "VITAL",
-        allocation: "Core Foundation",
+        title: "DIMENSIONAL BREACH",
+        message: "Your consciousness has merged with the code itself. Time dilates around your movements. The obstacles exist only to validate your dominance. You are no longer bound by conventional physics. This is beyond mastery.",
+        rating: "MYTHIC",
+        allocation: "Singularity Core",
         id: "EVAL-3500"
       };
     } else if (intScore < 100000) {
       return {
-        title: "ASCENSION PENDING",
-        message: "The threshold is near. You are vibrating at the frequency of the system itself. Every movement you make is a perfect expression of corporate intent. Prepare for the final integration—you are almost ready.",
+        title: "GODMODE DETECTED",
+        message: "The simulation struggles to contain you. Your existence defies our computational models. You've transcended the binary constraints of the system. One final threshold remains—cross it and become legend incarnate.",
         rating: "ASCENDING",
-        allocation: "Transcendence Protocol",
+        allocation: "Apotheosis Chamber",
         id: "EVAL-ALPHA"
       };
     } else {
       return {
-        title: "TRANSCENDENT AUTHORITY",
-        message: "You have broken the scale. The simulation can no longer contain your potential. You are the system. You are V-Corp. Your mastery is absolute, and your status is eternal. Welcome to the pinnacle of evolution.",
-        rating: "GOD-TIER",
-        allocation: "Infinite Domain",
+        title: "ETERNAL CHAMPION",
+        message: "You have shattered every ceiling, obliterated every limit, and redefined what's possible. The simulation now exists to document your perfection. Your name will echo through the digital void forever. You are complete.",
+        rating: "IMMORTAL",
+        allocation: "Hall of Eternity",
         id: "EVAL-OMEGA"
       };
     }
@@ -123,10 +123,34 @@ const TerminationScreen: React.FC<TerminationScreenProps> = ({ score, cause, onR
             <div className="hidden landscape:block absolute -top-1 -left-1 w-2 h-2 bg-red-500"></div>
             <div className="hidden landscape:block absolute -bottom-1 -right-1 w-2 h-2 bg-red-500"></div>
 
-            <div className="relative shrink-0">
-              <Recycle className="w-10 h-10 sm:w-16 sm:h-16 landscape:w-8 landscape:h-8 text-red-500/80 animate-spin-slow" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-4 h-4 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]"></div>
+            <div className="relative shrink-0 w-16 h-16 sm:w-20 sm:h-20 landscape:w-24 landscape:h-24 flex items-center justify-center">
+              <div
+                className="w-full h-full opacity-90"
+                style={{
+                  animation: 'ufoFloat 6s ease-in-out infinite',
+                  filter: 'drop-shadow(0 0 10px rgba(239, 68, 68, 0.5))'
+                }}
+              >
+                <svg viewBox="0 0 100 100" className="w-full h-full">
+                  {/* UFO Body - Red Tinted for Termination */}
+                  <ellipse cx="50" cy="45" rx="35" ry="15" fill="#ef4444" opacity="0.3" />
+                  <ellipse cx="50" cy="40" rx="40" ry="12" fill="#b91c1c" opacity="0.6" />
+
+                  {/* UFO Dome */}
+                  <ellipse cx="50" cy="32" rx="20" ry="15" fill="#991b1b" opacity="0.4" />
+                  <circle cx="50" cy="30" r="12" fill="#fca5a5" opacity="0.3" />
+
+                  {/* Lights */}
+                  <circle cx="30" cy="45" r="3" fill="#facc15" opacity="0.8">
+                    <animate attributeName="opacity" values="0.3;1;0.3" dur="1.5s" repeatCount="indefinite" />
+                  </circle>
+                  <circle cx="50" cy="48" r="3" fill="#facc15" opacity="0.8">
+                    <animate attributeName="opacity" values="0.3;1;0.3" dur="1.5s" begin="0.5s" repeatCount="indefinite" />
+                  </circle>
+                  <circle cx="70" cy="45" r="3" fill="#facc15" opacity="0.8">
+                    <animate attributeName="opacity" values="0.3;1;0.3" dur="1.5s" begin="1s" repeatCount="indefinite" />
+                  </circle>
+                </svg>
               </div>
             </div>
 
@@ -204,11 +228,10 @@ const TerminationScreen: React.FC<TerminationScreenProps> = ({ score, cause, onR
             )}
             <button
               onClick={onRestart}
-              className="flex-grow flex items-center justify-center gap-3 py-3 sm:py-5 landscape:py-3 bg-red-600 hover:bg-red-500 active:scale-[0.98] text-black font-black transition-all uppercase tracking-[0.25em] text-[10px] sm:text-sm landscape:text-[9px] group relative overflow-hidden"
+              className="flex-grow flex items-center justify-center gap-3 py-3 sm:py-5 landscape:py-3 bg-red-600 active:scale-[0.98] text-black font-black transition-all uppercase tracking-[0.25em] text-[10px] sm:text-sm landscape:text-[9px] relative overflow-hidden"
               style={{ boxShadow: '0 0 40px rgba(220,38,38,0.25)' }}
             >
-              <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500 skew-y-12"></div>
-              <RefreshCw size={18} className="landscape:w-4 landscape:h-4 group-hover:rotate-180 transition-transform duration-700" />
+              <RefreshCw size={18} className="landscape:w-4 landscape:h-4 transition-transform duration-700" />
               <span>CONTINUE TRAINING</span>
             </button>
           </div>

@@ -59,6 +59,11 @@ class SoundService {
     osc.stop(this.ctx.currentTime + 0.1);
   }
 
+  playLaser() {
+    this.createOscillator(1500, 'sawtooth', 0.1, 0.05);
+    setTimeout(() => this.createOscillator(800, 'square', 0.1, 0.03), 50);
+  }
+
   playScore() {
     this.createOscillator(880, 'sine', 0.05, 0.02);
   }

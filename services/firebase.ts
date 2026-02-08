@@ -11,7 +11,26 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
-export const auth = getAuth(app);
+console.log("Firebase Config Loaded:", {
+  apiKey: firebaseConfig.apiKey ? '***' + firebaseConfig.apiKey.slice(-4) : 'MISSING',
+  authDomain: firebaseConfig.authDomain,
+  projectId: firebaseConfig.projectId,
+});
+
+let app;
+let db: any;
+let auth: any;
+
+try {
+  app = initializeApp(firebaseConfig);
+  db = getFirestore(app);
+  auth = getAuth(app);
+} catch (error) {
+  console.error("Firebase Initialization Error:", error);
+  // Fallback mocks to prevent crash
+  db = { type: 'mock' }; 
+  auth = { currentUser: null, onAuthStateChanged: (cb: any) => cb(null) };
+}
+
+export { app, db, auth };
 ``

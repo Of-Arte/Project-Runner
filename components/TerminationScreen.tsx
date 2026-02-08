@@ -12,7 +12,7 @@ interface TerminationScreenProps {
 }
 
 const TerminationScreen: React.FC<TerminationScreenProps> = ({ score, cause, onRestart, user, onLogin }) => {
-  
+
   const manifest = useMemo(() => {
     const intScore = Math.floor(score);
     if (intScore < 10000) {
@@ -116,102 +116,102 @@ const TerminationScreen: React.FC<TerminationScreenProps> = ({ score, cause, onR
 
       {/* Main Manifest Container - Full bleed on mobile, manifest look on desktop */}
       <div className="relative w-full max-w-5xl h-full landscape:h-auto landscape:max-h-[95vh] flex flex-col landscape:flex-row gap-0 sm:gap-6 z-10 animate-in fade-in zoom-in duration-500 overflow-hidden border-red-500/10 landscape:border-2 landscape:overflow-y-auto">
-        
+
         {/* Left Section: Identity & Corporate Header */}
         <div className="flex flex-col w-full landscape:w-60 landscape:sm:w-72 gap-0 sm:gap-4 shrink-0 bg-black/40 landscape:bg-transparent border-b landscape:border-b-0 border-red-500/20">
           <div className="p-3 sm:p-6 landscape:p-4 relative flex flex-row landscape:flex-col items-center gap-4 landscape:gap-2 text-left landscape:text-center border-2 border-transparent landscape:border-red-500/30">
-             <div className="hidden landscape:block absolute -top-1 -left-1 w-2 h-2 bg-red-500"></div>
-             <div className="hidden landscape:block absolute -bottom-1 -right-1 w-2 h-2 bg-red-500"></div>
-             
-             <div className="relative shrink-0">
-                <Recycle className="w-10 h-10 sm:w-16 sm:h-16 landscape:w-8 landscape:h-8 text-red-500/80 animate-spin-slow" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-4 h-4 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]"></div>
-                </div>
-             </div>
-             
-             <div className="flex-grow">
-               <h2 className="text-lg sm:text-2xl landscape:text-xl font-black italic tracking-tighter text-red-500 uppercase leading-none mb-1">
-                  {manifest.title}
-               </h2>
-               <div className="inline-block bg-red-500 text-black px-2 py-0.5 text-[10px] sm:text-xs font-black uppercase tracking-widest">
-                  Performance Review
-               </div>
-             </div>
+            <div className="hidden landscape:block absolute -top-1 -left-1 w-2 h-2 bg-red-500"></div>
+            <div className="hidden landscape:block absolute -bottom-1 -right-1 w-2 h-2 bg-red-500"></div>
+
+            <div className="relative shrink-0">
+              <Recycle className="w-10 h-10 sm:w-16 sm:h-16 landscape:w-8 landscape:h-8 text-red-500/80 animate-spin-slow" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-4 h-4 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]"></div>
+              </div>
+            </div>
+
+            <div className="flex-grow">
+              <h2 className="text-lg sm:text-2xl landscape:text-xl font-black italic tracking-tighter text-red-500 uppercase leading-none mb-1">
+                {manifest.title}
+              </h2>
+              <div className="inline-block bg-red-500 text-black px-2 py-0.5 text-[10px] sm:text-xs font-black uppercase tracking-widest">
+                Performance Review
+              </div>
+            </div>
           </div>
 
           <div className="hidden landscape:flex flex-col border border-gray-800 bg-black/40 p-5 flex-grow">
-             <div className="w-full space-y-3 font-mono mb-6">
-                <div className="flex justify-between items-center border-b border-red-500/10 pb-1">
-                    <span className="text-[7px] text-gray-500 uppercase font-bold tracking-widest">Host Unit</span>
-                    <span className="text-[9px] text-white truncate max-w-[120px]">{user?.username || 'ANONYMOUS-404'}</span>
-                </div>
-                <div className="flex justify-between items-center border-b border-red-500/10 pb-1">
-                    <span className="text-[7px] text-gray-500 uppercase font-bold tracking-widest">Manifest</span>
-                    <span className="text-[9px] text-red-400 font-bold">{manifest.id}</span>
-                </div>
-             </div>
-             <p className="text-[9px] text-gray-500 font-mono leading-relaxed italic border-t border-gray-800 pt-4">
-                "Your physical contribution is essential. V-Corp handles all reassignments with maximum dignity."
-             </p>
+            <div className="w-full space-y-3 font-mono mb-6">
+              <div className="flex justify-between items-center border-b border-red-500/10 pb-1">
+                <span className="text-[7px] text-gray-500 uppercase font-bold tracking-widest">Host Unit</span>
+                <span className="text-[9px] text-white truncate max-w-[120px]">{user?.username || 'ANONYMOUS-404'}</span>
+              </div>
+              <div className="flex justify-between items-center border-b border-red-500/10 pb-1">
+                <span className="text-[7px] text-gray-500 uppercase font-bold tracking-widest">Manifest</span>
+                <span className="text-[9px] text-red-400 font-bold">{manifest.id}</span>
+              </div>
+            </div>
+            <p className="text-[9px] text-gray-500 font-mono leading-relaxed italic border-t border-gray-800 pt-4">
+              "Your physical contribution is essential. V-Corp handles all reassignments with maximum dignity."
+            </p>
           </div>
         </div>
 
         {/* Right Section: Core Report & Data */}
         <div className="flex-grow flex flex-col h-full landscape:h-auto border-t-0 landscape:border-2 border-white/10 bg-black/60 relative p-4 sm:p-8 landscape:p-6 overflow-hidden">
-            <div className="hidden landscape:block absolute -top-1 -right-1 w-2 h-2 bg-red-500"></div>
-            <div className="hidden landscape:block absolute -bottom-1 -left-1 w-2 h-2 bg-red-500"></div>
+          <div className="hidden landscape:block absolute -top-1 -right-1 w-2 h-2 bg-red-500"></div>
+          <div className="hidden landscape:block absolute -bottom-1 -left-1 w-2 h-2 bg-red-500"></div>
 
-            {/* Top Bar for Mobile */}
-            <div className="flex landscape:hidden justify-between items-center mb-4 border-b border-gray-800 pb-2">
-                <div className="text-[8px] font-mono text-gray-500 uppercase tracking-[0.2em]">{manifest.id}</div>
-                <div className="text-[8px] font-mono text-white uppercase tracking-[0.2em]">{user?.username || 'ANONYMOUS-404'}</div>
-            </div>
+          {/* Top Bar for Mobile */}
+          <div className="flex landscape:hidden justify-between items-center mb-4 border-b border-gray-800 pb-2">
+            <div className="text-[8px] font-mono text-gray-500 uppercase tracking-[0.2em]">{manifest.id}</div>
+            <div className="text-[8px] font-mono text-white uppercase tracking-[0.2em]">{user?.username || 'ANONYMOUS-404'}</div>
+          </div>
 
-            {/* Metrics Section */}
-            <div className="grid grid-cols-1 landscape:grid-cols-2 gap-3 sm:gap-6 landscape:gap-4 mb-4 sm:mb-8 landscape:mb-4">
-                <div className="bg-white/5 border border-white/10 p-3 sm:p-5 landscape:p-4 relative group overflow-hidden">
-                    <div className="absolute top-0 right-0 w-8 h-8 opacity-10"><Award className="w-full h-full text-white" /></div>
-                    <div className="text-[10px] sm:text-xs text-gray-500 uppercase font-bold tracking-widest mb-1">Final Score</div>
-                    <div className="text-2xl sm:text-4xl landscape:text-3xl font-black text-white font-mono leading-none">{Math.floor(score).toLocaleString()}<span className="text-red-500 text-sm sm:text-lg ml-1">m</span></div>
-                </div>
-                <div className="col-span-1 bg-black/40 border-l-4 border-white/20 p-3 sm:p-5 landscape:p-4">
-                    <div className="text-[10px] sm:text-xs text-gray-500 uppercase font-bold tracking-widest mb-1">Ended By</div>
-                    <div className="text-xs sm:text-base text-red-200 font-bold uppercase truncate tracking-tight">{cause}</div>
-                </div>
+          {/* Metrics Section */}
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="bg-white/5 border border-white/10 p-3 relative group overflow-hidden">
+              <div className="absolute top-0 right-0 w-8 h-8 opacity-10"><Award className="w-full h-full text-white" /></div>
+              <div className="text-[10px] text-gray-500 uppercase font-bold tracking-widest mb-1">Final Score</div>
+              <div className="text-2xl sm:text-3xl font-black text-white font-mono leading-none">{Math.floor(score).toLocaleString()}<span className="text-red-500 text-sm ml-1">m</span></div>
             </div>
+            <div className="col-span-1 bg-black/40 border-l-4 border-white/20 p-3 flex flex-col justify-center">
+              <div className="text-[10px] text-gray-500 uppercase font-bold tracking-widest mb-1">Status</div>
+              <div className="text-xs sm:text-sm text-red-200 font-bold uppercase truncate tracking-tight">{cause}</div>
+            </div>
+          </div>
 
-            {/* Performance Assessment */}
-            <div className="flex-grow flex flex-col justify-start mb-4 sm:mb-10 landscape:mb-6 min-h-0">
-                <div className="text-[8px] sm:text-[10px] text-red-500/60 font-black uppercase tracking-[0.3em] mb-2 sm:mb-4 flex items-center gap-2">
-                </div>
-                <div className="overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-red-900/50 max-h-48 landscape:max-h-32">
-                  <p className="text-sm sm:text-xl landscape:text-lg text-gray-300 leading-relaxed font-serif italic border-l border-gray-800 pl-4 sm:pl-8 landscape:pl-6 py-2">
-                      {manifest.message}
-                  </p>
-                </div>
+          {/* Performance Assessment */}
+          <div className="flex-grow flex flex-col justify-start mb-4 sm:mb-10 landscape:mb-6 min-h-0">
+            <div className="text-[8px] sm:text-[10px] text-red-500/60 font-black uppercase tracking-[0.3em] mb-2 sm:mb-4 flex items-center gap-2">
             </div>
+            <div className="overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-red-900/50 max-h-48 landscape:max-h-32">
+              <p className="text-sm sm:text-xl landscape:text-lg text-gray-300 leading-relaxed font-serif italic border-l border-gray-800 pl-4 sm:pl-8 landscape:pl-6 py-2">
+                {manifest.message}
+              </p>
+            </div>
+          </div>
 
-            {/* Footer Actions */}
-            <div className="flex flex-col sm:flex-row gap-3 mt-auto shrink-0 pt-4 landscape:pt-4 border-t border-gray-800">
-                {!user && (
-                    <button 
-                        onClick={onLogin}
-                        className="flex-shrink-0 flex items-center justify-center gap-2 px-6 py-3 landscape:py-2 border border-cyan-500/40 hover:bg-cyan-900/20 text-cyan-400 transition-all text-[9px] sm:text-[11px] landscape:text-[8px] font-black uppercase tracking-widest group"
-                    >
-                        <LogIn size={16} className="landscape:w-3 landscape:h-3 group-hover:translate-x-1 transition-transform" /> Link Alias
-                    </button>
-                )}
-                <button 
-                   onClick={onRestart}
-                   className="flex-grow flex items-center justify-center gap-3 py-3 sm:py-5 landscape:py-3 bg-red-600 hover:bg-red-500 active:scale-[0.98] text-black font-black transition-all uppercase tracking-[0.25em] text-[10px] sm:text-sm landscape:text-[9px] group relative overflow-hidden"
-                   style={{ boxShadow: '0 0 40px rgba(220,38,38,0.25)' }}
-                >
-                    <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500 skew-y-12"></div>
-                    <RefreshCw size={18} className="landscape:w-4 landscape:h-4 group-hover:rotate-180 transition-transform duration-700" />
-                    <span>CONTINUE TRAINING</span>
-                </button>
-            </div>
+          {/* Footer Actions */}
+          <div className="flex flex-col sm:flex-row gap-3 mt-auto shrink-0 pt-4 landscape:pt-4 border-t border-gray-800">
+            {!user && (
+              <button
+                onClick={onLogin}
+                className="flex-shrink-0 flex items-center justify-center gap-2 px-6 py-3 landscape:py-2 border border-cyan-500/40 hover:bg-cyan-900/20 text-cyan-400 transition-all text-[9px] sm:text-[11px] landscape:text-[8px] font-black uppercase tracking-widest group"
+              >
+                <LogIn size={16} className="landscape:w-3 landscape:h-3 group-hover:translate-x-1 transition-transform" /> Link Alias
+              </button>
+            )}
+            <button
+              onClick={onRestart}
+              className="flex-grow flex items-center justify-center gap-3 py-3 sm:py-5 landscape:py-3 bg-red-600 hover:bg-red-500 active:scale-[0.98] text-black font-black transition-all uppercase tracking-[0.25em] text-[10px] sm:text-sm landscape:text-[9px] group relative overflow-hidden"
+              style={{ boxShadow: '0 0 40px rgba(220,38,38,0.25)' }}
+            >
+              <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500 skew-y-12"></div>
+              <RefreshCw size={18} className="landscape:w-4 landscape:h-4 group-hover:rotate-180 transition-transform duration-700" />
+              <span>CONTINUE TRAINING</span>
+            </button>
+          </div>
         </div>
       </div>
 

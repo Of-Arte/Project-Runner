@@ -4,7 +4,11 @@ import {
   signOut, 
   onAuthStateChanged, 
   User,
-  updateProfile
+  updateProfile,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
+  inMemoryPersistence
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
@@ -70,10 +74,43 @@ export const logout = async () => {
 };
 
 export const subscribeToAuth = (callback: (user: UserProfile | null) => void) => {
+  if (!auth || !auth.onAuthStateChanged) {
+      console.warn("Auth not initialized, defaulting to offline mode.");
+      callback(null);
+      return () => {};
+  }
+
+  // Attempt to set persistence, fallback to memory if blocked
+  const setAuthPersistence = async () => {
+    try {
+      await setPersistence(auth, browserLocalPersistence);
+    } catch (e) {
+      console.warn("Local persistence failed (cookies blocked?), falling back to session/memory.", e);
+      try {
+        await setPersistence(auth, browserSessionPersistence);
+      } catch (e2) {
+        console.warn("Session persistence failed, falling back to memory.", e2);
+        try {
+            await setPersistence(auth, inMemoryPersistence);
+        } catch (e3) {
+            console.error("All persistence methods failed.", e3);
+        }
+      }
+    }
+  };
+  
+  // Fire and forget persistence setup
+  setAuthPersistence();
+
   return onAuthStateChanged(auth, async (firebaseUser) => {
     if (firebaseUser) {
-      const profile = await getUserProfile(firebaseUser);
-      callback(profile);
+      try {
+        const profile = await getUserProfile(firebaseUser);
+        callback(profile);
+      } catch (e) {
+        console.error("Error fetching user profile:", e);
+        callback(null);
+      }
     } else {
       callback(null);
     }

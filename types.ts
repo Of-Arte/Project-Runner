@@ -94,3 +94,25 @@ export interface GameConfig {
   lifePackBaseChance: number;
   lifePackSynergyChance: number;
 }
+
+export type GridType = 'classic' | 'hex' | 'digital';
+
+export interface BiomePalette {
+  background: string;
+  grid: string;
+  gridHighlight: string;
+  text: string;
+  obstacle: string;
+  particlePrimary: string;
+  particleSecondary: string;
+}
+
+export interface Biome {
+  name: string;
+  threshold: number;
+  palette: BiomePalette;
+  atmosphere: {
+    gridType: GridType;
+    particleDensity: number;
+  };
+}

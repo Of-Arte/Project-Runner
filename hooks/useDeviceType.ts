@@ -10,7 +10,10 @@ export const useDeviceType = () => {
       // Also check width to be sure, as some laptops have touchscreens
       const isNarrow = window.innerWidth < 1024;
       
-      const mobile = touchCapable && isNarrow;
+      // Allow mobile mode if screen is phone-sized (e.g. < 768) even if no touch (for dev testing)
+      const isPhoneSize = window.innerWidth < 768; 
+
+      const mobile = (touchCapable && isNarrow) || isPhoneSize;
       
       setIsMobile(mobile);
       setIsDesktop(!mobile);

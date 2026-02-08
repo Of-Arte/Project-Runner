@@ -7,7 +7,8 @@ import {
   SYNERGY_DURATION, SYNERGY_CREDIT_VALUE, LIFE_RECOVERY_THRESHOLD,
   PORTRAIT_PLAYER_Y_OFFSET, PORTRAIT_PLAYER_SIZE, PORTRAIT_LANE_COUNT, PORTRAIT_LANE_WIDTH_PERCENT,
   CREDIT_SCORE_VALUE, LANDSCAPE_CONFIG, PORTRAIT_CONFIG,
-  LASER_COOLDOWN_FRAMES, LASER_COOLDOWN_REDUCTION
+  LASER_COOLDOWN_FRAMES, LASER_COOLDOWN_REDUCTION,
+  BIOMES // Added BIOMES import
 } from '../constants';
 import { generatePsychologicalTriggers } from '../services/geminiService';
 import { soundService } from '../services/soundEffects';
@@ -24,6 +25,53 @@ interface GameCanvasProps {
   showTutorial: boolean;
 }
 
+// Helper for color interpolation
+const lerpColor = (start: string, end: string, t: number): string => {
+  // Simple hex to rgb lerp
+  let a = start.startsWith('#') ? start : '#000000';
+  let b = end.startsWith('#') ? end : '#000000';
+
+  // Handle rgba if needed, but for now assuming hex or simple colors. 
+  // If inputs are rgba, we might need a better parser. 
+  // For safety with existing constants, let's implement a robust one or use a library? NO library.
+  // quick hex parser:
+  const parse = (c: string) => {
+    if (c.startsWith('rgba')) {
+      const parts = c.match(/[\d.]+/g);
+      return parts ? parts.map(Number) : [0, 0, 0, 1];
+    }
+    if (c.startsWith('#')) {
+      const hex = c.slice(1);
+      const bigint = parseInt(hex, 16);
+      if (hex.length === 3) {
+        return [
+          ((bigint >> 8) & 0xF) * 17,
+          ((bigint >> 4) & 0xF) * 17,
+          (bigint & 0xF) * 17,
+          1
+        ];
+      }
+      return [
+        (bigint >> 16) & 255,
+        (bigint >> 8) & 255,
+        bigint & 255,
+        1
+      ];
+    }
+    return [0, 0, 0, 1];
+  };
+
+  const c1 = parse(a);
+  const c2 = parse(b);
+
+  const r = Math.round(c1[0] + (c2[0] - c1[0]) * t);
+  const g = Math.round(c1[1] + (c2[1] - c1[1]) * t);
+  const _b = Math.round(c1[2] + (c2[2] - c1[2]) * t); // _b to avoid blocking scope variable 'b'
+  const alpha = (c1[3] + (c2[3] - c1[3]) * t);
+
+  return `rgba(${r}, ${g}, ${_b}, ${alpha})`;
+};
+
 const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setScore, setLives, setSynergy, setIsSynergyActive, setDeathCause, showTutorial }) => {
   const { isPortrait } = useDeviceOrientation();
   const config = isPortrait ? PORTRAIT_CONFIG : LANDSCAPE_CONFIG;
@@ -37,17 +85,20 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
 
   const scoreRef = useRef(0);
   const speedRef = useRef(isPortrait ? PORTRAIT_CONFIG.baseSpeed : LANDSCAPE_CONFIG.baseSpeed);
-  const framesRef = useRef(0); // Still used for logic gates (every N frames), but incremented by relativeDelta
+  const framesRef = useRef(0);
   const lastTimeRef = useRef<number>(0);
-  const animTimeRef = useRef<number>(0); // Decoupled time for visual animations (0.0 to Infinity)
+  const animTimeRef = useRef<number>(0);
   const shakeRef = useRef(0);
   const stageRef = useRef(0);
   const livesRef = useRef(INITIAL_LIVES);
   const invincibleFramesRef = useRef(0);
-  const subliminalTimerRef = useRef(0); // Timer for triggering subliminal messages
-  // lastMilestoneLevelRef no longer needed for speed increments, but maybe for sound effects?
-  // Let's keep it to play "Speed Up" sound.
+  const subliminalTimerRef = useRef(0);
   const lastMilestoneLevelRef = useRef(0);
+
+  // Biome State
+  const currentBiomeIndexRef = useRef(0);
+  const nextBiomeIndexRef = useRef(0);
+  const biomeTransitionRef = useRef(0); // 0.0 to 1.0
 
   // Synergy System Refs
   const synergyMeterRef = useRef(0);
@@ -93,12 +144,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
   const triggersRef = useRef<string[]>(["OBEY", "WORK", "CONSUME"]);
   const activeSubliminalRef = useRef<{ text: string, opacity: number, x: number, y: number, scale: number } | null>(null);
   const isSwipeActionActive = useRef(false);
+  const lastTapTimeRef = useRef(0);
 
   useEffect(() => {
     const handleResize = () => {
       if (containerRef.current && canvasRef.current) {
         const { offsetWidth, offsetHeight } = containerRef.current;
-        // Cap devicePixelRatio to prevent excessive zoom in PWA/webapp mode
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
         canvasRef.current.width = offsetWidth * dpr;
         canvasRef.current.height = offsetHeight * dpr;
@@ -201,6 +252,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
     isSwipeActionActive.current = false;
 
     if (isPortrait) {
+      const now = Date.now();
+      if (now - lastTapTimeRef.current < 300) {
+        // Double Tap Detected
+        console.log("Double Tap Laser Triggered!");
+        fireLaser();
+        lastTapTimeRef.current = 0; // Reset to prevent triple-tap firing
+        return;
+      }
+      lastTapTimeRef.current = now;
+
       const { width } = dimensionsRef.current;
       const touchX = e.touches[0].clientX;
       if (touchX < width / 2) moveLeft();
@@ -215,12 +276,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
     const diffY = e.touches[0].clientY - touchStartRef.current.y;
 
     if (isPortrait) {
-      if (diffY < -SWIPE_THRESHOLD) { // Swipe Up -> Laser
-        if (!isSwipeActionActive.current) {
-          fireLaser();
-          isSwipeActionActive.current = true;
-        }
-      } else if (diffY > SWIPE_THRESHOLD) { // Swipe Down -> Duck? Or maybe Shield? Keep Duck for now if High Drones exist.
+      if (diffY < -SWIPE_THRESHOLD) { // Swipe Up -> Laser REMOVED, now Double Tap
+        // Double tap handled in touchStart, swipe up does nothing or maybe shield later?
+      } else if (diffY > SWIPE_THRESHOLD) { // Swipe Down -> Duck
         startDuck();
       }
     } else {
@@ -267,26 +325,29 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
     // Set Cooldown
     laserCooldownRef.current = LASER_COOLDOWN_FRAMES;
 
-    // Instant Beam
-    lasersRef.current.push({
-      id: Math.random().toString(36),
-      lane: laneRef.current,
-      life: 15,
-      maxLife: 15
-    });
+    // Instant Beam - ALL LANES
+    for (let l = 0; l < PORTRAIT_LANE_COUNT; l++) {
+      lasersRef.current.push({
+        id: Math.random().toString(36),
+        lane: l,
+        life: 15,
+        maxLife: 15
+      });
+    }
 
-    // Instant Collision Check (Hitscan)
-    // Destroy all obstacles in the current lane
+    // Instant Collision Check (Hitscan) - ALL LANES
+    // Destroy all obstacles in ANY lane (or valid lanes)
     let hitCount = 0;
     obstaclesRef.current.forEach(obs => {
       if (obs.shattered || obs.passed) return;
-      // Lane check for portrait mode
-      if ((obs as any).lane === laneRef.current) {
-        obs.shattered = true;
-        createParticles(obs.x + obs.width / 2, obs.y + obs.height / 2, 15, COLORS.NEON_CYAN);
-        shakeRef.current = 5;
-        hitCount++;
-      }
+
+      // Hit everything in portrait logic since we blast all lanes
+      // Technically we should check if it's within lane bounds if we want to be pedantic,
+      // but "zap all 3 lanes" implies screen wipe for obstacles in those lanes.
+      obs.shattered = true;
+      createParticles(obs.x + obs.width / 2, obs.y + obs.height / 2, 15, COLORS.NEON_CYAN);
+      shakeRef.current = 5;
+      hitCount++;
     });
 
     if (hitCount > 0) {
@@ -474,9 +535,28 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
     }
 
     const currentScore = Math.floor(scoreRef.current);
-    for (let i = DEPARTMENTS.length - 1; i >= 0; i--) {
-      if (currentScore >= DEPARTMENTS[i].threshold) { stageRef.current = i; break; }
+
+    // Biome Logic
+    const maxBiome = BIOMES.length - 1;
+    if (currentBiomeIndexRef.current < maxBiome) {
+      const nextBiome = BIOMES[currentBiomeIndexRef.current + 1];
+      if (currentScore >= nextBiome.threshold) {
+        if (nextBiomeIndexRef.current === currentBiomeIndexRef.current) {
+          nextBiomeIndexRef.current = currentBiomeIndexRef.current + 1;
+        }
+      }
     }
+
+    // Handle Transition
+    if (nextBiomeIndexRef.current > currentBiomeIndexRef.current) {
+      biomeTransitionRef.current += 0.01 * relativeDelta; // Transition speed
+      if (biomeTransitionRef.current >= 1) {
+        biomeTransitionRef.current = 0;
+        currentBiomeIndexRef.current = nextBiomeIndexRef.current;
+      }
+    }
+
+    stageRef.current = currentBiomeIndexRef.current; // Sync legacy stage ref
 
     // Subliminal Text Trigger Logic
     subliminalTimerRef.current += relativeDelta;
@@ -846,80 +926,137 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
     const { width, height, groundY } = dimensionsRef.current;
     const isSynergy = synergyActiveFramesRef.current > 0;
 
+    // --- BIOME PALETTE CALCULATION ---
+    const currentBiome = BIOMES[currentBiomeIndexRef.current];
+    const nextBiome = BIOMES[nextBiomeIndexRef.current];
+    const t = biomeTransitionRef.current;
+
+    const p = {
+      background: t <= 0 ? currentBiome.palette.background : (t >= 1 ? nextBiome.palette.background : lerpColor(currentBiome.palette.background, nextBiome.palette.background, t)),
+      grid: t <= 0 ? currentBiome.palette.grid : (t >= 1 ? nextBiome.palette.grid : lerpColor(currentBiome.palette.grid, nextBiome.palette.grid, t)),
+      gridHighlight: t <= 0 ? currentBiome.palette.gridHighlight : (t >= 1 ? nextBiome.palette.gridHighlight : lerpColor(currentBiome.palette.gridHighlight, nextBiome.palette.gridHighlight, t)),
+      text: t <= 0 ? currentBiome.palette.text : (t >= 1 ? nextBiome.palette.text : lerpColor(currentBiome.palette.text, nextBiome.palette.text, t)),
+      obstacle: t <= 0 ? currentBiome.palette.obstacle : (t >= 1 ? nextBiome.palette.obstacle : lerpColor(currentBiome.palette.obstacle, nextBiome.palette.obstacle, t)),
+      particlePrimary: t <= 0 ? currentBiome.palette.particlePrimary : (t >= 1 ? nextBiome.palette.particlePrimary : lerpColor(currentBiome.palette.particlePrimary, nextBiome.palette.particlePrimary, t)),
+      particleSecondary: t <= 0 ? currentBiome.palette.particleSecondary : (t >= 1 ? nextBiome.palette.particleSecondary : lerpColor(currentBiome.palette.particleSecondary, nextBiome.palette.particleSecondary, t)),
+    };
+
+    const gridType = t > 0.5 ? nextBiome.atmosphere.gridType : currentBiome.atmosphere.gridType;
+
     ctx.save();
     ctx.translate((Math.random() - 0.5) * shakeRef.current, (Math.random() - 0.5) * shakeRef.current);
-    ctx.fillStyle = COLORS.DARK_BG; ctx.fillRect(-20, -20, width + 40, height + 40);
 
-    const gridSize = 60;
-    ctx.strokeStyle = isSynergy ? 'rgba(255,255,255,0.2)' : `rgba(0, 240, 255, 0.08)`;
+    // Background Fill
+    ctx.fillStyle = p.background;
+    ctx.fillRect(-20, -20, width + 40, height + 40);
+
+    // --- DYNAMIC BACKGROUND GRID ---
     ctx.lineWidth = 1;
+    const gridSize = 60;
+    const scroll = (framesRef.current * speedRef.current * 0.8);
 
-    if (isPortrait) {
-      // --- PORTRAIT RENDERING ---
-
-      // Vertical Grid Movement
-      const gridOffset = (framesRef.current * speedRef.current * 0.8) % gridSize;
-      // Horizontal lines move down
-      for (let y = -gridOffset; y < height; y += gridSize) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
-      // Vertical lines static
-      for (let x = 0; x <= width; x += gridSize) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); }
-
-      const laneWidth = width * (PORTRAIT_LANE_WIDTH_PERCENT / 100);
-      ctx.strokeStyle = `rgba(34, 211, 238, 0.1)`;
-      ctx.lineWidth = 2;
-      for (let i = 1; i < PORTRAIT_LANE_COUNT; i++) {
-        const x = i * laneWidth;
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
+    if (gridType === 'hex') {
+      // HEXAGONAL GRID (For Logistics/Management)
+      const hexTime = animTimeRef.current;
+      for (let i = 0; i < 5; i++) {
+        const hx = (width * 0.2 * i + hexTime * 50) % width;
+        const hy = (height * 0.3 * i + Math.sin(hexTime + i) * 50) % height;
+        ctx.strokeStyle = p.gridHighlight;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let j = 0; j < 6; j++) {
+          const ang = j * Math.PI / 3;
+          const rx = hx + Math.cos(ang) * 30;
+          const ry = hy + Math.sin(ang) * 30;
+          if (j === 0) ctx.moveTo(rx, ry); else ctx.lineTo(rx, ry);
+        }
+        ctx.closePath(); ctx.stroke();
       }
 
-      // Draw Lasers (Beams)
+      ctx.strokeStyle = p.grid; ctx.lineWidth = 1;
+      const gridOffset = scroll % gridSize;
+      if (isPortrait) {
+        for (let y = -gridOffset; y < height; y += gridSize) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
+      } else {
+        for (let x = -gridOffset; x < width; x += gridSize) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); }
+      }
+
+    } else if (gridType === 'digital') {
+      // DIGITAL/MATRIX RAIN
+      ctx.fillStyle = p.grid;
+      const colWidth = 20;
+      const numCols = Math.ceil(width / colWidth);
+      for (let i = 0; i < numCols; i++) {
+        if (i % 3 === 0) {
+          const streamY = (framesRef.current * (speedRef.current * 0.5 + Math.sin(i) * 2)) % (height + 200) - 100;
+          ctx.fillRect(i * colWidth, streamY, 2, 40);
+          if (Math.random() > 0.98) {
+            ctx.fillStyle = p.gridHighlight;
+            ctx.fillText(Math.random() > 0.5 ? "1" : "0", i * colWidth, streamY + 50);
+            ctx.fillStyle = p.grid;
+          }
+        }
+      }
+      ctx.strokeStyle = p.grid; ctx.lineWidth = 1;
+      const gridOffset = scroll % gridSize;
+      if (isPortrait) {
+        for (let y = -gridOffset; y < height; y += gridSize) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
+      } else {
+        for (let x = -gridOffset; x < width; x += gridSize) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); }
+      }
+
+    } else {
+      // CLASSIC GRID
+      ctx.strokeStyle = isSynergy ? 'rgba(255,255,255,0.2)' : p.grid;
+      const gridOffset = scroll % gridSize;
+
+      if (isPortrait) {
+        for (let y = -gridOffset; y < height; y += gridSize) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
+        for (let x = 0; x <= width; x += gridSize) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); }
+        const laneWidth = width * (PORTRAIT_LANE_WIDTH_PERCENT / 100);
+        ctx.strokeStyle = p.gridHighlight; ctx.lineWidth = 2;
+        for (let i = 1; i < PORTRAIT_LANE_COUNT; i++) {
+          const x = i * laneWidth;
+          ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
+        }
+      } else {
+        for (let y = 0; y <= height; y += gridSize) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
+        for (let x = -gridOffset; x < width; x += gridSize) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); }
+      }
+    }
+
+    // Draw Lasers (Beams) - Only in Portrait mode logic in original, but here we can keep it shared or check isPortrait
+    if (isPortrait) {
       lasersRef.current.forEach(laser => {
         const alpha = laser.life / laser.maxLife;
         const beamWidth = width * (PORTRAIT_LANE_WIDTH_PERCENT / 100);
         const x = laser.lane * beamWidth + (beamWidth / 2);
-
         ctx.save();
         ctx.globalAlpha = alpha;
-
-        // Main Beam - Originates from player top
         const playerY = height - PORTRAIT_PLAYER_Y_OFFSET;
-
-        ctx.fillStyle = COLORS.NEON_CYAN;
-        ctx.fillRect(x - 2, 0, 4, playerY); // Draw from top (0) to playerY
-
-        // Core White
+        ctx.fillStyle = p.particlePrimary; // Use biome color
+        ctx.fillRect(x - 2, 0, 4, playerY);
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(x - 1, 0, 2, playerY);
-
-        // Glow (Side fade)
-        // const gradient = ctx.createLinearGradient(x - 20, 0, x + 20, 0);
-        // gradient.addColorStop(0, 'rgba(0, 240, 255, 0)');
-        // gradient.addColorStop(0.5, 'rgba(0, 240, 255, 0.5)');
-        // gradient.addColorStop(1, 'rgba(0, 240, 255, 0)');
-        // ctx.fillStyle = gradient;
-        // ctx.fillRect(x - 20, 0, 40, height);
-
-        // Simple Glow
-        ctx.shadowBlur = 20; ctx.shadowColor = COLORS.NEON_CYAN;
+        ctx.shadowBlur = 20; ctx.shadowColor = p.particlePrimary;
         ctx.fillRect(x - 2, 0, 4, height);
-
         ctx.restore();
       });
-
-    } else {
-      // --- LANDSCAPE RENDERING ---
-      const gridOffset = (framesRef.current * speedRef.current * 0.8) % gridSize;
-      for (let y = 0; y <= height; y += gridSize) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
-      for (let x = -gridOffset; x < width; x += gridSize) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); }
     }
 
-    starsRef.current.forEach(star => { ctx.fillStyle = `rgba(255, 255, 255, ${star.opacity})`; ctx.beginPath(); ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2); ctx.fill(); });
+    starsRef.current.forEach(star => {
+      ctx.fillStyle = `rgba(255, 255, 255, ${star.opacity})`;
+      // Optional: Tint stars?
+      // ctx.fillStyle = isSynergy ? '#fff' : p.particleSecondary;
+      ctx.beginPath(); ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2); ctx.fill();
+    });
 
     if (gameState === GameState.MENU) { ctx.restore(); return; }
 
     if (activeSubliminalRef.current) {
       const msg = activeSubliminalRef.current;
-      ctx.save(); ctx.globalAlpha = msg.opacity; ctx.fillStyle = isSynergy ? '#fff' : DEPARTMENTS[stageRef.current].primary;
+      ctx.save(); ctx.globalAlpha = msg.opacity;
+      ctx.fillStyle = isSynergy ? '#fff' : p.text;
       const fontSize = isPortrait ? 60 : 120;
       ctx.font = `900 ${fontSize}px 'Rajdhani'`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.translate(width / 2, height / 2); ctx.scale(msg.scale, msg.scale); ctx.fillText(msg.text, 0, 0); ctx.restore();
@@ -927,7 +1064,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
 
     if (!isPortrait) {
       // Landscape Ground Line
-      ctx.strokeStyle = isSynergy ? '#fff' : COLORS.NEON_BLUE; ctx.lineWidth = 2;
+      ctx.strokeStyle = isSynergy ? '#fff' : p.gridHighlight;
+      ctx.lineWidth = 2;
       ctx.shadowBlur = 15; ctx.shadowColor = ctx.strokeStyle;
       ctx.beginPath(); ctx.moveTo(0, groundY); ctx.lineTo(width, groundY); ctx.stroke(); ctx.shadowBlur = 0;
     }
@@ -944,20 +1082,20 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
       ctx.restore();
     });
 
-    const p = playerRef.current;
+    const pl = playerRef.current; // Renamed from 'p' to 'pl' to avoid conflict with palette 'p'
 
     if (isPortrait) {
       // --- ENHANCED PORTRAIT PLAYER DRAW ---
       const playerY = height - PORTRAIT_PLAYER_Y_OFFSET;
       const size = PORTRAIT_PLAYER_SIZE;
-      const centerX = p.laneX!;
+      const centerX = pl.laneX!;
       const centerY = playerY + size / 2;
 
       ctx.save();
 
-      // Jump Scale Effect with slight rotation
-      const jumpScale = 1 + (p.altitude || 0) / 100;
-      const tiltAngle = (p.altitude || 0) * 0.002; // Slight tilt when jumping
+      // Jump Scale Effect
+      const jumpScale = 1 + (pl.altitude || 0) / 100;
+      const tiltAngle = (pl.altitude || 0) * 0.002;
 
       ctx.translate(centerX, centerY);
       ctx.rotate(tiltAngle);
@@ -969,7 +1107,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
       const hasAura = synergyMeterRef.current > 0 || isSynergy;
 
       if (hasAura) {
-        // Outer Aura Ring (Pulsing)
+        // Outer Aura Ring
         const outerPulse = 0.9 + Math.sin(animTimeRef.current * 8) * 0.1;
         const outerRadius = (size / 2) * (2.2 * outerPulse);
         const outerGlow = ctx.createRadialGradient(centerX, centerY, size / 2, centerX, centerY, outerRadius);
@@ -979,241 +1117,127 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
           outerGlow.addColorStop(0.5, 'rgba(120, 220, 255, 0.15)');
           outerGlow.addColorStop(1, 'rgba(255, 255, 255, 0)');
         } else {
-          outerGlow.addColorStop(0, `rgba(34, 211, 238, ${0.2 * meterRatio})`);
-          outerGlow.addColorStop(0.6, `rgba(0, 150, 200, ${0.1 * meterRatio})`);
-          outerGlow.addColorStop(1, 'rgba(34, 211, 238, 0)');
+          // Use biome primary color alpha for aura
+          // Handle both rgb and rgba
+          let color = p.particlePrimary;
+          if (color.startsWith('rgba')) {
+            // Just replace the alpha value (last number)
+            // simplified: replace the last number with 0.3
+            // or just replace ')' with ', 0.3)' IS WRONG for rgba.
+            // safest quick hack: parse it or just blindly use it?
+            // The error was rgbaa, implies replace('rgb', 'rgba') ran on 'rgba'.
+            // If we just want 0.3 alpha, and it's already rgba, we need to replace the existing alpha.
+            // Hack: force it to be a specific overlay color or just use a simple string replacement that works for both.
+            // If we assume standard format:
+            color = color.replace('rgb(', 'rgba(').replace('rgbaa', 'rgba').replace(')', ', 0.3)').replace(', 1, 0.3)', ', 0.3)');
+            // That's getting messy. 
+            // Better: Use the lerpColor helper? No, that mixes two colors.
+            // Let's just hardcode a known good visual equivalent for now or correct the replacement.
+            // If input is "rgba(r, g, b, 1)", replacing 'rgb' -> 'rgba' gives "rgbaa(r, g, b, 1)".
+            // We want "rgba(r, g, b, 0.3)".
+
+            // Clean fix:
+            if (color.startsWith('rgb(')) {
+              color = color.replace('rgb(', 'rgba(').replace(')', ', 0.3)');
+            } else if (color.startsWith('rgba(')) {
+              // assume format rgba(r,g,b,a) -> replace last number?
+              // Easier: just replace the 'a' part.
+              const lastComma = color.lastIndexOf(',');
+              if (lastComma !== -1) {
+                color = color.substring(0, lastComma) + ', 0.3)';
+              }
+            }
+            outerGlow.addColorStop(0, color);
+          } else {
+            // Fallback or hex?
+            outerGlow.addColorStop(0, 'rgba(34, 211, 238, 0.3)');
+          }
+          outerGlow.addColorStop(1, 'rgba(0,0,0,0)');
         }
 
         ctx.fillStyle = outerGlow;
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, outerRadius, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.beginPath(); ctx.arc(centerX, centerY, outerRadius, 0, Math.PI * 2); ctx.fill();
 
-        // Middle Aura Ring (Rotating particles)
+        // Particles
         const particleCount = isSynergy ? 12 : Math.floor(8 * meterRatio);
         for (let i = 0; i < particleCount; i++) {
           const angle = (i / particleCount) * Math.PI * 2 + animTimeRef.current * 3;
           const radius = size * (isSynergy ? 1.4 : 1.2);
           const px = centerX + Math.cos(angle) * radius;
           const py = centerY + Math.sin(angle) * radius;
-
           ctx.save();
           ctx.globalAlpha = isSynergy ? 0.8 : 0.4 * meterRatio;
           ctx.shadowBlur = 15;
-          ctx.shadowColor = isSynergy ? '#fff' : COLORS.NEON_CYAN;
-          ctx.fillStyle = isSynergy ? '#fff' : COLORS.NEON_CYAN;
-          ctx.beginPath();
-          ctx.arc(px, py, isSynergy ? 3 : 2, 0, Math.PI * 2);
-          ctx.fill();
+          ctx.shadowColor = isSynergy ? '#fff' : p.particlePrimary;
+          ctx.fillStyle = isSynergy ? '#fff' : p.particlePrimary;
+          ctx.beginPath(); ctx.arc(px, py, isSynergy ? 3 : 2, 0, Math.PI * 2); ctx.fill();
           ctx.restore();
         }
 
-        // Inner Aura (Bright Core)
-        const innerPulse = 0.95 + Math.sin(animTimeRef.current * 10) * 0.05;
-        const innerRadius = (size / 2) * (1.6 * innerPulse);
-        const innerGlow = ctx.createRadialGradient(centerX, centerY, size / 4, centerX, centerY, innerRadius);
-
-        if (isSynergy) {
-          innerGlow.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
-          innerGlow.addColorStop(0.5, 'rgba(180, 240, 255, 0.4)');
-          innerGlow.addColorStop(1, 'rgba(255, 255, 255, 0)');
-        } else {
-          innerGlow.addColorStop(0, `rgba(100, 240, 255, ${0.6 * meterRatio})`);
-          innerGlow.addColorStop(0.5, `rgba(34, 211, 238, ${0.3 * meterRatio})`);
-          innerGlow.addColorStop(1, 'rgba(34, 211, 238, 0)');
-        }
-
-        ctx.fillStyle = innerGlow;
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, innerRadius, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Energy Shield Rings
+        // Energy Rings
         if (isSynergy) {
           for (let ring = 0; ring < 2; ring++) {
             const ringOffset = ring * Math.PI;
             const ringRadius = size * (1.1 + ring * 0.15);
             const ringAlpha = 0.6 - ring * 0.2;
-
             ctx.save();
             ctx.globalAlpha = ringAlpha + Math.sin(animTimeRef.current * 6 + ringOffset) * 0.2;
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 2;
-            ctx.shadowBlur = 20;
-            ctx.shadowColor = '#fff';
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, ringRadius, 0, Math.PI * 2);
-            ctx.stroke();
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.shadowBlur = 20; ctx.shadowColor = '#fff';
+            ctx.beginPath(); ctx.arc(centerX, centerY, ringRadius, 0, Math.PI * 2); ctx.stroke();
             ctx.restore();
           }
         }
       }
 
-      // Laser Cooldown Arc (Enhanced)
+      // Laser Cooldown Arc
       if (laserCooldownRef.current > 0) {
         ctx.save();
         const cooldownPct = laserCooldownRef.current / LASER_COOLDOWN_FRAMES;
         ctx.translate(centerX, centerY);
-
-        // Background arc (gray)
-        ctx.beginPath();
-        ctx.arc(0, 0, size * 0.85, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(100, 100, 100, 0.3)';
-        ctx.lineWidth = 4;
-        ctx.stroke();
-
-        // Progress arc (cyan, filling up)
-        ctx.beginPath();
-        ctx.arc(0, 0, size * 0.85, -Math.PI / 2, (-Math.PI / 2) + (Math.PI * 2 * (1 - cooldownPct)));
+        // Background
+        ctx.beginPath(); ctx.arc(0, 0, size * 0.85, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(100, 100, 100, 0.3)'; ctx.lineWidth = 4; ctx.stroke();
+        // Progress
+        ctx.beginPath(); ctx.arc(0, 0, size * 0.85, -Math.PI / 2, (-Math.PI / 2) + (Math.PI * 2 * (1 - cooldownPct)));
         const arcGlow = ctx.createLinearGradient(0, -size, 0, size);
         arcGlow.addColorStop(0, COLORS.NEON_CYAN);
         arcGlow.addColorStop(1, 'rgba(34, 211, 238, 0.6)');
-        ctx.strokeStyle = arcGlow;
-        ctx.lineWidth = 4;
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = COLORS.NEON_CYAN;
-        ctx.globalAlpha = 0.9;
-        ctx.stroke();
-
+        ctx.strokeStyle = arcGlow; ctx.lineWidth = 4; ctx.shadowBlur = 10; ctx.shadowColor = COLORS.NEON_CYAN;
+        ctx.globalAlpha = 0.9; ctx.stroke();
         ctx.restore();
       }
 
-      // --- PLAYER BODY (Diamond Ship) ---
+      // Player Body
       if (isSynergy) {
-        // Synergy Mode: Brilliant white form with energy waves
         ctx.save();
-        ctx.shadowBlur = 40;
-        ctx.shadowColor = '#fff';
-        ctx.fillStyle = '#fff';
-
-        // Main body with pulse
+        ctx.shadowBlur = 40; ctx.shadowColor = '#fff'; ctx.fillStyle = '#fff';
         const synergyPulse = 1 + Math.sin(animTimeRef.current * 15) * 0.05;
-        ctx.translate(centerX, centerY);
-        ctx.scale(synergyPulse, synergyPulse);
-        ctx.translate(-centerX, -centerY);
-
-        // Draw enhanced diamond
-        ctx.beginPath();
-        ctx.moveTo(centerX, centerY - size / 2);
-        ctx.lineTo(centerX + size / 2, centerY);
-        ctx.lineTo(centerX, centerY + size / 2);
-        ctx.lineTo(centerX - size / 2, centerY);
-        ctx.closePath();
-        ctx.fill();
-
-        // Inner white core
-        ctx.shadowBlur = 20;
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-        ctx.beginPath();
-        ctx.moveTo(centerX, centerY - size / 3);
-        ctx.lineTo(centerX + size / 3, centerY);
-        ctx.lineTo(centerX, centerY + size / 3);
-        ctx.lineTo(centerX - size / 3, centerY);
-        ctx.closePath();
-        ctx.fill();
-
+        ctx.translate(centerX, centerY); ctx.scale(synergyPulse, synergyPulse); ctx.translate(-centerX, -centerY);
+        ctx.beginPath(); ctx.moveTo(centerX, centerY - size / 2); ctx.lineTo(centerX + size / 2, centerY); ctx.lineTo(centerX, centerY + size / 2); ctx.lineTo(centerX - size / 2, centerY); ctx.closePath(); ctx.fill();
         ctx.restore();
       } else {
-        // Normal Mode: Enhanced diamond with depth
-
-        // Shadow/Depth layer
+        // Normal Mode - Biome Colored
         ctx.save();
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-        ctx.beginPath();
-        ctx.moveTo(centerX + 2, centerY - size / 2 + 2);
-        ctx.lineTo(centerX + size / 2 + 2, centerY + 2);
-        ctx.lineTo(centerX + 2, centerY + size / 2 + 2);
-        ctx.lineTo(centerX - size / 2 + 2, centerY + 2);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
+        ctx.fillStyle = p.particlePrimary; // Body main color
+        ctx.shadowBlur = 20; ctx.shadowColor = p.particlePrimary;
+        ctx.beginPath(); ctx.moveTo(centerX, centerY - size / 2); ctx.lineTo(centerX + size / 2, centerY); ctx.lineTo(centerX, centerY + size / 2); ctx.lineTo(centerX - size / 2, centerY); ctx.closePath(); ctx.fill();
 
-        // Main body - Gradient fill for depth
-        const bodyGradient = ctx.createLinearGradient(centerX - size / 2, centerY - size / 2, centerX + size / 2, centerY + size / 2);
-        bodyGradient.addColorStop(0, 'rgba(100, 240, 255, 0.95)');
-        bodyGradient.addColorStop(0.5, 'rgba(34, 211, 238, 0.9)');
-        bodyGradient.addColorStop(1, 'rgba(0, 180, 220, 0.85)');
-
-        ctx.shadowBlur = 20;
-        ctx.shadowColor = COLORS.NEON_CYAN;
-        ctx.fillStyle = bodyGradient;
-        ctx.strokeStyle = 'rgba(150, 250, 255, 0.9)';
-        ctx.lineWidth = 2;
-
-        ctx.beginPath();
-        ctx.moveTo(centerX, centerY - size / 2); // Top
-        ctx.lineTo(centerX + size / 2, centerY); // Right
-        ctx.lineTo(centerX, centerY + size / 2); // Bottom
-        ctx.lineTo(centerX - size / 2, centerY); // Left
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-
-        // Highlight edges for 3D effect
-        ctx.save();
-        ctx.globalAlpha = 0.6;
-        ctx.strokeStyle = 'rgba(200, 255, 255, 0.8)';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(centerX, centerY - size / 2);
-        ctx.lineTo(centerX - size / 2, centerY);
-        ctx.stroke();
-        ctx.restore();
-
-        // Core energy center
-        ctx.save();
-        const coreGradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, size / 4);
-        coreGradient.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
-        coreGradient.addColorStop(0.7, 'rgba(100, 240, 255, 0.6)');
-        coreGradient.addColorStop(1, 'rgba(34, 211, 238, 0)');
-        ctx.fillStyle = coreGradient;
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, size / 4, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-
-        // Animated accent lines
-        const accentPulse = Math.sin(animTimeRef.current * 8) * 0.5 + 0.5;
-        ctx.save();
-        ctx.globalAlpha = 0.4 + accentPulse * 0.3;
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(centerX, centerY - size / 4);
-        ctx.lineTo(centerX, centerY + size / 4);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(centerX - size / 4, centerY);
-        ctx.lineTo(centerX + size / 4, centerY);
-        ctx.stroke();
+        // Inner Detail
+        ctx.fillStyle = p.particleSecondary;
+        ctx.beginPath(); ctx.arc(centerX, centerY, size / 4, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
       }
 
-      // Enhanced Jet Trail / Thruster Effect
-      if (!p.isGrounded || (p.altitude || 0) > 5) {
-        const trailIntensity = Math.min((p.altitude || 0) / 50, 1);
+      // Trail
+      if (!pl.isGrounded || (pl.altitude || 0) > 5) {
+        const trailIntensity = Math.min((pl.altitude || 0) / 50, 1);
         const trailY = centerY + size / 2 + 5;
-
-        // Multiple trail particles
         for (let i = 0; i < 3; i++) {
           const offset = i * 8;
-          const trailAlpha = (1 - i * 0.3) * trailIntensity;
-          const trailSize = (8 - i * 2) * (0.8 + Math.sin(animTimeRef.current * 12 + i) * 0.2);
-
           ctx.save();
-          ctx.globalAlpha = trailAlpha * 0.7;
-
-          const trailGradient = ctx.createRadialGradient(centerX, trailY + offset, 0, centerX, trailY + offset, trailSize);
-          trailGradient.addColorStop(0, isSynergy ? 'rgba(255, 255, 255, 0.9)' : 'rgba(100, 240, 255, 0.9)');
-          trailGradient.addColorStop(0.5, isSynergy ? 'rgba(150, 200, 255, 0.5)' : 'rgba(34, 211, 238, 0.5)');
-          trailGradient.addColorStop(1, 'rgba(34, 211, 238, 0)');
-
-          ctx.fillStyle = trailGradient;
-          ctx.shadowBlur = 15;
-          ctx.shadowColor = isSynergy ? '#fff' : COLORS.NEON_CYAN;
-          ctx.beginPath();
-          ctx.arc(centerX, trailY + offset, trailSize, 0, Math.PI * 2);
-          ctx.fill();
+          ctx.globalAlpha = (1 - i * 0.3) * trailIntensity * 0.7;
+          ctx.fillStyle = p.particlePrimary;
+          ctx.beginPath(); ctx.arc(centerX, trailY + offset, (8 - i * 2), 0, Math.PI * 2); ctx.fill();
           ctx.restore();
         }
       }
@@ -1222,140 +1246,96 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
 
     } else {
       // --- LANDSCAPE PLAYER DRAW ---
-      const ph = p.isDucking ? PLAYER_HEIGHT_DUCKING : PLAYER_HEIGHT_STANDING;
+      const ph = pl.isDucking ? PLAYER_HEIGHT_DUCKING : PLAYER_HEIGHT_STANDING;
       const pulse = Math.sin(animTimeRef.current * 10) * 2;
 
       ctx.save();
       if (invincibleFramesRef.current > 0) ctx.globalAlpha = Math.sin(animTimeRef.current * 30) * 0.5 + 0.5;
 
-      // Aura Effect (Landscape)
+      // Aura
       if (synergyMeterRef.current > 0 || isSynergy) {
         ctx.save();
         const meterRatio = Math.min(synergyMeterRef.current, 100) / 100;
         const auraOpacity = isSynergy ? 0.5 + Math.sin(animTimeRef.current * 12) * 0.2 : meterRatio * 0.3;
-        const auraBaseColor = isSynergy ? '255, 255, 255' : '34, 211, 238';
-
+        const auraBaseColor = isSynergy ? '255, 255, 255' : '34, 211, 238'; // Maybe use biome color too?
         ctx.shadowBlur = isSynergy ? 30 : 15 * meterRatio;
         ctx.shadowColor = `rgba(${auraBaseColor}, ${isSynergy ? 1 : meterRatio})`;
         ctx.fillStyle = `rgba(${auraBaseColor}, ${auraOpacity})`;
-
-        // Draw rect behind player
-        const auraPadding = isSynergy ? 10 : 5;
-        ctx.fillRect(
-          PLAYER_X - auraPadding,
-          p.y - auraPadding,
-          PLAYER_WIDTH + (auraPadding * 2),
-          ph + (auraPadding * 2)
-        );
+        ctx.fillRect(PLAYER_X - 5, pl.y - 5, PLAYER_WIDTH + 10, ph + 10);
         ctx.restore();
       }
 
       if (isSynergy) {
         ctx.shadowBlur = 30; ctx.shadowColor = '#fff'; ctx.fillStyle = '#fff';
-        ctx.fillRect(PLAYER_X - pulse, p.y - pulse, PLAYER_WIDTH + pulse * 2, ph + pulse * 2);
-      } else if (p.isDucking) {
-        ctx.shadowBlur = 15; ctx.shadowColor = COLORS.NEON_BLUE; ctx.fillStyle = 'rgba(0, 240, 255, 0.8)';
-        ctx.fillRect(PLAYER_X, p.y + 5, PLAYER_WIDTH, ph - 5);
+        ctx.fillRect(PLAYER_X - pulse, pl.y - pulse, PLAYER_WIDTH + pulse * 2, ph + pulse * 2);
       } else {
-        ctx.shadowBlur = 15; ctx.shadowColor = COLORS.NEON_BLUE; ctx.fillStyle = 'rgba(0, 240, 255, 0.1)';
-        ctx.strokeStyle = COLORS.NEON_BLUE; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(PLAYER_X + PLAYER_WIDTH / 2, p.y - pulse); ctx.lineTo(PLAYER_X + PLAYER_WIDTH + pulse, p.y + ph / 2);
-        ctx.lineTo(PLAYER_X + PLAYER_WIDTH / 2, p.y + ph + pulse); ctx.lineTo(PLAYER_X - pulse, p.y + ph / 2); ctx.closePath(); ctx.stroke(); ctx.fill();
+        ctx.shadowBlur = 15; ctx.shadowColor = p.particlePrimary; ctx.fillStyle = p.particlePrimary;
+        ctx.fillRect(PLAYER_X, pl.y, PLAYER_WIDTH, ph);
       }
       ctx.restore();
     }
 
     obstaclesRef.current.forEach(obs => {
       if (obs.shattered) return;
-      ctx.save(); // Add save/restore for obstacle draw safety
+      ctx.save();
       ctx.shadowBlur = 15;
 
-      // Simple scaling for "3D" feel in portrait if high?
-      // Just keep it simple for now. 
-
       if (obs.type === ObstacleType.HOVER_MINE) {
-        // Use frameOffset but mapped to time
+        // Mine
         const bob = Math.sin((animTimeRef.current * 5) + obs.frameOffset) * 5;
         ctx.shadowColor = COLORS.NEON_RED; ctx.fillStyle = '#333';
+        // Mines stay red/danger color usually? Or use biome obstacle color?
+        // Let's keep mines RED for danger, but maybe tint?
+        // Using biome obstacle color might be better for cohesion.
+        const obsColor = p.obstacle;
+        ctx.shadowColor = obsColor;
 
-        if (isPortrait) {
-          // Top down mine - circle with spikes
-          ctx.beginPath(); ctx.arc(obs.x + obs.width / 2, obs.y + obs.height / 2, obs.width / 2, 0, Math.PI * 2); ctx.fill();
-          // Spikes
-        } else {
-          ctx.beginPath(); ctx.arc(obs.x + 15, obs.y + 15 + bob, 15, 0, Math.PI * 2); ctx.fill();
-        }
-
-        ctx.strokeStyle = COLORS.NEON_RED; ctx.lineWidth = 2;
         const cx = isPortrait ? obs.x + obs.width / 2 : obs.x + 15;
         const cy = isPortrait ? obs.y + obs.height / 2 : obs.y + 15 + bob;
         const rad = isPortrait ? obs.width / 2 : 15;
 
-        ctx.beginPath(); for (let i = 0; i < 8; i++) { const a = i * (Math.PI / 4); ctx.moveTo(cx + Math.cos(a) * rad, cy + Math.sin(a) * rad); ctx.lineTo(cx + Math.cos(a) * (rad * 1.5), cy + Math.sin(a) * (rad * 1.5)); }
-        ctx.stroke();
-      } else if (obs.type === ObstacleType.LIFE_PACK) {
-        // Life Pack Render
-        ctx.shadowColor = COLORS.NEON_GREEN; ctx.shadowBlur = 15; ctx.fillStyle = '#0f0';
+        ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = obsColor; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2); ctx.stroke();
 
       } else if (obs.type === ObstacleType.LIFE_PACK) {
-        // Life Pack Render
         ctx.shadowColor = COLORS.NEON_GREEN; ctx.shadowBlur = 15; ctx.fillStyle = '#0f0';
-
-        const time = animTimeRef.current * 6;
-        const scale = 1 + Math.sin(time) * 0.2;
+        const scale = 1 + Math.sin(animTimeRef.current * 6) * 0.2;
         const centerX = obs.x + obs.width / 2;
         const centerY = obs.y + obs.height / 2;
-
-        ctx.translate(centerX, centerY);
-        ctx.scale(scale, scale);
-        // Draw Cross / Plus
+        ctx.translate(centerX, centerY); ctx.scale(scale, scale);
         ctx.fillRect(-obs.width / 3, -obs.height / 8, obs.width / 1.5, obs.height / 4);
         ctx.fillRect(-obs.width / 8, -obs.height / 3, obs.width / 4, obs.height / 1.5);
         ctx.translate(-centerX, -centerY);
-
       } else {
-        ctx.shadowColor = DEPARTMENTS[stageRef.current].primary; ctx.fillStyle = '#222';
-
-        if (isPortrait) {
-          // Top Down Block
-          ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
-          // Top detail
-          const blink = Math.sin(animTimeRef.current * 12) > 0.9;
-          ctx.fillStyle = blink ? '#000' : COLORS.NEON_RED;
-          ctx.beginPath(); ctx.arc(obs.x + obs.width / 2, obs.y + obs.height / 2, 4, 0, Math.PI * 2); ctx.fill();
-        } else {
-          if (obs.type === ObstacleType.DRONE_HIGH) {
-            ctx.beginPath(); ctx.moveTo(obs.x, obs.y + 10); ctx.lineTo(obs.x + obs.width, obs.y + 10); ctx.lineTo(obs.x + obs.width / 2, obs.y + obs.height); ctx.fill();
-            ctx.fillStyle = `rgba(255, 0, 0, 0.3)`; ctx.beginPath(); ctx.moveTo(obs.x + obs.width / 2, obs.y + obs.height);
-            const s = Math.sin(framesRef.current * 0.1) * 20; ctx.lineTo(obs.x - 120 + s, height); ctx.lineTo(obs.x + 20 + s, height); ctx.fill();
-          } else ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
-          const blink = Math.sin(animTimeRef.current * 12) > 0.9;
-          ctx.fillStyle = blink ? '#000' : COLORS.NEON_RED; ctx.shadowColor = COLORS.NEON_RED; ctx.shadowBlur = 10;
-          ctx.beginPath(); ctx.arc(obs.x + obs.width / 2, obs.y + obs.height / 2, 6, 0, Math.PI * 2); ctx.fill();
-        }
+        // Standard Drone / Obstacle
+        ctx.shadowColor = p.obstacle; ctx.fillStyle = '#111';
+        ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+        ctx.fillStyle = p.obstacle;
+        ctx.beginPath(); ctx.arc(obs.x + obs.width / 2, obs.y + obs.height / 2, 4, 0, Math.PI * 2); ctx.fill();
       }
-      ctx.shadowBlur = 0;
       ctx.restore();
     });
 
-    particlesRef.current.forEach(p => { ctx.fillStyle = p.color; ctx.globalAlpha = p.life; ctx.fillRect(p.x, p.y, 4, 4); ctx.globalAlpha = 1; });
+    particlesRef.current.forEach(pt => { // Renamed 'p' to 'pt'
+      ctx.fillStyle = pt.color;
+      ctx.globalAlpha = pt.life; ctx.fillRect(pt.x, pt.y, 4, 4); ctx.globalAlpha = 1;
+    });
 
-    // Floating Text Rendering
+    // Floating Text
     floatingTextsRef.current.forEach(t => {
       ctx.save();
       ctx.globalAlpha = t.life;
       ctx.font = `900 ${t.fontSize}px 'Rajdhani'`;
       ctx.fillStyle = t.color;
-      ctx.strokeStyle = '#000';
-      ctx.lineWidth = 3;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
+      ctx.strokeStyle = '#000'; ctx.lineWidth = 3;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.strokeText(t.text, t.x, t.y);
       ctx.fillText(t.text, t.x, t.y);
       ctx.restore();
     });
 
-    // Synergy Vignette/Border Glow
+    // Vignette
     if (isSynergy) {
       ctx.save();
       const gradient = ctx.createRadialGradient(width / 2, height / 2, Math.min(width, height) * 0.3, width / 2, height / 2, Math.max(width, height) * 0.7);
@@ -1365,6 +1345,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, width, height);
       ctx.restore();
+    }
+
+    // Biome Transition Overlay (Flash effect on change?)
+    // Could add here if we want a full screen flash when biome changes
+    if (biomeTransitionRef.current > 0 && biomeTransitionRef.current < 1) {
+      // Optional: Subtle white flash at peak transition?
     }
 
     ctx.restore();
@@ -1427,8 +1413,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
       {gameState === GameState.PLAYING && (
         <div className="absolute top-24 right-4 text-right pointer-events-none">
           <div className="text-[8px] text-gray-500 font-mono tracking-widest uppercase">Dept. Zone</div>
-          <div className="text-xl font-bold font-mono animate-pulse" style={{ color: DEPARTMENTS[stageRef.current].primary }}>
-            {DEPARTMENTS[stageRef.current].name}
+          <div className="text-xl font-bold font-mono animate-pulse" style={{ color: BIOMES[stageRef.current].palette.text }}>
+            {BIOMES[stageRef.current].name}
           </div>
         </div>
       )}

@@ -68,12 +68,67 @@ export const COLORS = {
   TEXT_SECONDARY: '#808080'
 };
 
-export const DEPARTMENTS = [
-  { threshold: 0, name: "ORIENTATION", primary: COLORS.NEON_BLUE, bg: '#050510' },
-  { threshold: 800, name: "PROCESSING", primary: COLORS.NEON_GREEN, bg: '#000500' },
-  { threshold: 2000, name: "EXECUTIVE OVERSIGHT", primary: COLORS.NEON_RED, bg: '#1a0505' },
-  { threshold: 4000, name: "THE VOID", primary: COLORS.NEON_PURPLE, bg: '#080008' }
-];
+// Biome Configuration
+export const BIOMES = [
+  {
+    name: "ORIENTATION",
+    threshold: 0,
+    palette: {
+      background: '#050510',
+      grid: 'rgba(34, 211, 238, 0.1)',
+      gridHighlight: 'rgba(34, 211, 238, 0.3)',
+      text: COLORS.NEON_BLUE,
+      obstacle: COLORS.NEON_RED,
+      particlePrimary: COLORS.NEON_BLUE,
+      particleSecondary: COLORS.NEON_CYAN
+    },
+    atmosphere: { gridType: 'classic', particleDensity: 1.0 }
+  },
+  {
+    name: "LOGISTICS",
+    threshold: 1500, // Reduced for testing
+    palette: {
+      background: '#1a1005', // Dark Orange/Brown
+      grid: 'rgba(250, 204, 21, 0.1)', // Yellow
+      gridHighlight: 'rgba(250, 204, 21, 0.3)',
+      text: COLORS.NEON_YELLOW,
+      obstacle: '#ef4444', // Red-Orange
+      particlePrimary: COLORS.NEON_YELLOW,
+      particleSecondary: '#fbbf24' // Amber
+    },
+    atmosphere: { gridType: 'hex', particleDensity: 1.2 }
+  },
+  {
+    name: "MANAGEMENT",
+    threshold: 4000,
+    palette: {
+      background: '#15051a', // Dark Purple
+      grid: 'rgba(189, 10, 255, 0.1)', // Purple
+      gridHighlight: 'rgba(189, 10, 255, 0.4)',
+      text: COLORS.NEON_PURPLE,
+      obstacle: '#d946ef', // Fuchsia
+      particlePrimary: COLORS.NEON_PURPLE,
+      particleSecondary: '#e879f9'
+    },
+    atmosphere: { gridType: 'hex', particleDensity: 1.5 }
+  },
+  {
+    name: "THE MAINFRAME",
+    threshold: 8000,
+    palette: {
+      background: '#000500', // Deep Green/Black
+      grid: 'rgba(74, 222, 128, 0.15)', // Green
+      gridHighlight: 'rgba(74, 222, 128, 0.5)',
+      text: COLORS.NEON_GREEN,
+      obstacle: '#fff', // White (Glitch)
+      particlePrimary: COLORS.NEON_GREEN,
+      particleSecondary: '#fff'
+    },
+    atmosphere: { gridType: 'digital', particleDensity: 2.0 }
+  }
+] as const;
+
+export const DEPARTMENTS = BIOMES; // Legacy alias for compatibility
 
 export const MOCK_LEADERBOARD = [
   { username: 'NEO_CEO', score: 999999 },

@@ -44,7 +44,7 @@ const ControlsGuidance: React.FC<ControlsGuidanceProps> = ({ mode, isPortrait = 
                             </div>
                         </div>
                         <span className={`text-[10px] sm:text-xs font-mono ${isPortrait ? 'text-red-400' : 'text-yellow-400'} tracking-[0.3em] uppercase opacity-70`}>
-                            {isMobile ? (isPortrait ? 'Swipe Up' : 'Swipe') : 'Duck'}
+                            {isMobile ? (isPortrait ? 'Double Tap' : 'Swipe') : 'Duck'}
                         </span>
                     </div>
                 </div>
@@ -63,7 +63,7 @@ const ControlsGuidance: React.FC<ControlsGuidanceProps> = ({ mode, isPortrait = 
             <div className="flex items-center gap-3 px-3 py-1.5 bg-gray-900/40 border border-gray-800 rounded-sm group hover:border-yellow-500/30 transition-all">
                 {isMobile ? (isPortrait ? <Zap size={14} className="text-red-400/60" /> : <ArrowDown size={14} className="text-yellow-400/60" />) : <ArrowDown size={14} className="text-yellow-400/60" />}
                 <span className="text-[10px] font-mono text-gray-500 tracking-wider">
-                    {isMobile ? (isPortrait ? 'SWIPE UP TO' : 'SWIPE TO') : 'DOWN TO'} <span className={`${isPortrait && isMobile ? 'text-red-400/80' : 'text-yellow-400/80'} font-bold`}>{isPortrait && isMobile ? 'SHOOT' : 'DUCK'}</span>
+                    {isMobile ? (isPortrait ? 'DOUBLE TAP TO' : 'SWIPE TO') : 'DOWN TO'} <span className={`${isPortrait && isMobile ? 'text-red-400/80' : 'text-yellow-400/80'} font-bold`}>{isPortrait && isMobile ? 'SHOOT' : 'DUCK'}</span>
                 </span>
             </div>
         </div>

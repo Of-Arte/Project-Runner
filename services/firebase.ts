@@ -1,6 +1,6 @@
-import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
+import { initializeApp, FirebaseApp } from 'firebase/app';
+import { getFirestore, Firestore } from 'firebase/firestore';
+import { getAuth, Auth } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -11,15 +11,9 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-console.log("Firebase Config Loaded:", {
-  apiKey: firebaseConfig.apiKey ? '***' + firebaseConfig.apiKey.slice(-4) : 'MISSING',
-  authDomain: firebaseConfig.authDomain,
-  projectId: firebaseConfig.projectId,
-});
-
-let app;
-let db: any;
-let auth: any;
+let app: FirebaseApp;
+let db: Firestore;
+let auth: Auth;
 
 try {
   app = initializeApp(firebaseConfig);
@@ -28,8 +22,8 @@ try {
 } catch (error) {
   console.error("Firebase Initialization Error:", error);
   // Fallback mocks to prevent crash
-  db = { type: 'mock' }; 
-  auth = { currentUser: null, onAuthStateChanged: (cb: any) => cb(null) };
+  db = { type: 'mock' } as unknown as Firestore; 
+  auth = { currentUser: null, onAuthStateChanged: (cb: any) => cb(null) } as unknown as Auth;
 }
 
 export { app, db, auth };

@@ -4,7 +4,22 @@ const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 
 const MODEL_NAME = 'gemini-3-flash-preview';
 
+// Simple in-memory cache to reduce API usage and latency
+const cache = {
+  slogans: [] as string[],
+  triggers: [] as string[],
+  lastSloganFetch: 0,
+  lastTriggerFetch: 0
+};
+
+const CACHE_TTL = 1000 * 60 * 30; // 30 minutes
+
 export const generateSlogans = async (): Promise<string[]> => {
+  // Return cached result if fresh
+  if (cache.slogans.length > 0 && Date.now() - cache.lastSloganFetch < CACHE_TTL) {
+    return cache.slogans;
+  }
+
   try {
     const prompt = `Generate 5 short, direct corporate slogans for V-Corp's performance ticker.
     Context: 2026 AI-driven startup. Humans are biological assets. Game encourages score optimization.
@@ -27,7 +42,11 @@ export const generateSlogans = async (): Promise<string[]> => {
     
     const text = response.text;
     if (!text) return ["Biology is Error.", "Submit to the Algorithm.", "Upgrade your flesh.", "Sleep is theft."];
-    return JSON.parse(text) as string[];
+    
+    const parsed = JSON.parse(text) as string[];
+    cache.slogans = parsed;
+    cache.lastSloganFetch = Date.now();
+    return parsed;
 
   } catch (e) {
     return [
@@ -41,6 +60,11 @@ export const generateSlogans = async (): Promise<string[]> => {
 };
 
 export const generatePsychologicalTriggers = async (): Promise<string[]> => {
+  // Return cached result if fresh
+  if (cache.triggers.length > 0 && Date.now() - cache.lastTriggerFetch < CACHE_TTL) {
+    return cache.triggers;
+  }
+
   try {
     const prompt = `Generate 10 single-word psychological triggers or short commands for a dystopian conditioning program. 
     Examples: OBEY, YIELD, FAIL, SLEEP, CONSUME, SUBMIT, WATCHING. 
@@ -60,7 +84,11 @@ export const generatePsychologicalTriggers = async (): Promise<string[]> => {
 
     const text = response.text;
     if (!text) return ["OBEY", "SUBMIT", "CONSUME", "SLEEP", "WATCHING", "FAIL", "YIELD"];
-    return JSON.parse(text) as string[];
+    
+    const parsed = JSON.parse(text) as string[];
+    cache.triggers = parsed;
+    cache.lastTriggerFetch = Date.now();
+    return parsed;
   } catch (e) {
     return ["OBEY", "SUBMIT", "CONSUME", "SLEEP", "WATCHING", "FAIL", "YIELD"];
   }

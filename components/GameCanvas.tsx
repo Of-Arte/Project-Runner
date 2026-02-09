@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import ControlsGuidance from './ControlsGuidance';
 import { GameState, GameObject, ObstacleType, PowerupType, PlayerState, Particle, Star, Credit, Laser, FloatingText, BossState, BossPhase } from '../types';
+import { drawPlayer, drawDrone, drawServer } from '../utils/drawingUtils';
 import {
   PLAYER_X, PLAYER_WIDTH, PLAYER_HEIGHT_STANDING, PLAYER_HEIGHT_DUCKING,
   COLORS, INITIAL_LIVES, INVINCIBILITY_FRAMES,
@@ -211,6 +212,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
       bossRef.current.phase = BossPhase.DEFEATED;
       createFloatingText(bossRef.current.x, bossRef.current.y, "THREAT NEUTRALIZED", COLORS.NEON_GREEN, 40);
       scoreRef.current += 10000;
+      nextBossTriggerScoreRef.current += 10000; // Increment next trigger to account for bonus
       createParticles(bossRef.current.x, bossRef.current.y, 100, COLORS.NEON_GREEN);
       soundService.playSynergyStart();
     }
@@ -836,7 +838,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
     if (activeSubliminalRef.current) {
       const msg = activeSubliminalRef.current;
       ctx.save(); ctx.globalAlpha = msg.opacity; ctx.fillStyle = p.text;
-      ctx.font = `900 ${Math.floor(60 * msg.scale)}px 'Share Tech Mono'`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const fontSize = Math.min(Math.floor(60 * msg.scale), Math.floor(width / 12));
+      ctx.font = `900 ${fontSize}px 'Share Tech Mono'`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(msg.text, msg.x, msg.y); ctx.restore();
     }
 
@@ -908,13 +911,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
         ctx.fillStyle = color; ctx.font = `bold ${Math.floor(rad * 1.2)}px 'Share Tech Mono'`;
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(pType === PowerupType.SHIELD ? 'S' : 'R', centerX, centerY);
+      } else if (obs.type === ObstacleType.SERVER) {
+        drawServer(ctx, obs.x, obs.y, obs.width, obs.height, animTimeRef.current);
       } else {
-        // Standard Drone / Obstacle
-        ctx.shadowColor = p.obstacle; ctx.fillStyle = '#111';
-        ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
-        const blink = Math.sin(animTimeRef.current * 12) > 0;
-        ctx.fillStyle = blink ? p.obstacle : '#000';
-        ctx.beginPath(); ctx.arc(obs.x + obs.width / 2, obs.y + obs.height / 2, 4, 0, Math.PI * 2); ctx.fill();
+        // Standard Drone
+        drawDrone(ctx, obs.x, obs.y, obs.width, obs.height, animTimeRef.current, false);
       }
       ctx.restore();
     });
@@ -938,31 +939,34 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
     ctx.save();
     if (invincibleFramesRef.current > 0) ctx.globalAlpha = 0.5 + Math.sin(animTimeRef.current * 30) * 0.3;
 
+    // Draw Procedural Player
+    drawPlayer(
+      ctx,
+      pl,
+      animTimeRef.current,
+      isPortrait,
+      isPortrait ? pl.laneX! - 20 : PLAYER_X, // X position
+      isPortrait ? height - PORTRAIT_PLAYER_Y_OFFSET - (pl.altitude || 0) - 20 : pl.y, // Y position
+      isPortrait ? 40 : PLAYER_WIDTH, // Width
+      isPortrait ? 40 : (pl.isDucking ? PLAYER_HEIGHT_DUCKING : PLAYER_HEIGHT_STANDING) // Height
+    );
+
+    // Legacy Effects Overlay (Shields, Reflect, etc.)
+    const isLaserReady = laserCooldownRef.current === 0;
+
     if (isPortrait) {
+      // Portrait Overlays
       const cx = pl.laneX!;
       const cy = height - PORTRAIT_PLAYER_Y_OFFSET - (pl.altitude || 0);
 
-      const isLaserReady = laserCooldownRef.current === 0;
       if (isSynergy || pl.activeEffectType || isLaserReady) {
         let auraColor = '#fff';
         if (isSynergy) auraColor = '#fff';
         else if (pl.activeEffectType === PowerupType.REFLECT) auraColor = POWERUP_CONFIG.REFLECT.color;
-        else if (isLaserReady) auraColor = '#ff0080'; // Neon pink for laser ready
+        else if (isLaserReady) auraColor = '#ff0080';
 
         ctx.save(); ctx.shadowBlur = 30; ctx.shadowColor = auraColor; ctx.fillStyle = auraColor + '44';
         ctx.beginPath(); ctx.arc(cx, cy, 30 + Math.sin(animTimeRef.current * 15) * 5, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-      }
-
-      ctx.fillStyle = p.primary; ctx.shadowBlur = 20; ctx.shadowColor = p.primary;
-      ctx.beginPath(); ctx.moveTo(cx, cy - 20); ctx.lineTo(cx + 20, cy); ctx.lineTo(cx, cy + 20); ctx.lineTo(cx - 20, cy); ctx.closePath(); ctx.fill();
-
-      // Trail
-      if (!pl.isGrounded || (pl.altitude || 0) > 5) {
-        const trailIntensity = Math.min((pl.altitude || 0) / 50, 1);
-        for (let i = 0; i < 3; i++) {
-          ctx.save(); ctx.globalAlpha = (1 - i * 0.3) * trailIntensity * 0.5;
-          ctx.beginPath(); ctx.arc(cx, cy + 25 + i * 10, 8 - i * 2, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-        }
       }
 
       if (pl.hasShield) {
@@ -979,21 +983,29 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
         ctx.restore();
       }
     } else {
+      // Landscape Overlays
       const ph = pl.isDucking ? PLAYER_HEIGHT_DUCKING : PLAYER_HEIGHT_STANDING;
 
-      // Laser ready glow for landscape
-      const isLaserReady = laserCooldownRef.current === 0;
       if (isLaserReady) {
+        // Subtle weapon charge indicator instead of full body glow
         ctx.save();
-        ctx.shadowBlur = 20;
+        const indicatorX = PLAYER_X + (pl.isDucking ? 20 : 10);
+        const indicatorY = pl.y - 15;
+
+        ctx.shadowBlur = 15;
         ctx.shadowColor = '#ff0080';
-        ctx.fillStyle = 'rgba(255, 0, 128, 0.2)';
-        ctx.fillRect(PLAYER_X - 5, pl.y - 5, PLAYER_WIDTH + 10, ph + 10);
+        ctx.fillStyle = '#ff0080';
+
+        // Floating charged orb near head/hand
+        ctx.beginPath();
+        ctx.arc(indicatorX, indicatorY + Math.sin(animTimeRef.current * 10) * 3, 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Small "READY" text
+        ctx.font = "10px 'Share Tech Mono'";
+        ctx.fillText("Agent", indicatorX + 8, indicatorY);
         ctx.restore();
       }
-
-      ctx.fillStyle = p.primary; ctx.shadowBlur = 15; ctx.shadowColor = p.primary;
-      ctx.fillRect(PLAYER_X, pl.y, PLAYER_WIDTH, ph);
 
       if (pl.hasShield) {
         ctx.strokeStyle = POWERUP_CONFIG.SHIELD.color; ctx.lineWidth = 3;
@@ -1004,13 +1016,19 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
         ctx.strokeRect(PLAYER_X - 10, pl.y - 10, PLAYER_WIDTH + 20, ph + 20);
       }
     }
+
     ctx.restore();
 
     // Boss
     if (bossRef.current) {
       const b = bossRef.current;
-      ctx.save(); ctx.shadowBlur = 30; ctx.shadowColor = b.phase === BossPhase.ATTACKING ? COLORS.NEON_RED : COLORS.NEON_PURPLE;
-      ctx.fillStyle = b.phase === BossPhase.ATTACKING ? COLORS.NEON_RED : COLORS.NEON_PURPLE;
+      const isAttacking = b.phase === BossPhase.ATTACKING;
+      const bossColor = isAttacking ? COLORS.NEON_RED : COLORS.NEON_PURPLE;
+
+      ctx.save();
+      ctx.shadowBlur = 30;
+      ctx.shadowColor = bossColor;
+      ctx.fillStyle = bossColor;
       ctx.fillRect(b.x - b.width / 2, b.y - b.height / 2, b.width, b.height);
 
       const hpy = b.y - b.height / 2 - 20;
@@ -1039,7 +1057,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
 
     // Floating Texts
     floatingTextsRef.current.forEach(t => {
-      ctx.save(); ctx.globalAlpha = t.life; ctx.fillStyle = t.color; ctx.font = `${t.fontSize}px "Share Tech Mono"`;
+      ctx.save(); ctx.globalAlpha = t.life; ctx.fillStyle = t.color;
+      const fontSize = Math.min(t.fontSize, Math.floor(width / 15));
+      ctx.font = `bold ${fontSize}px "Share Tech Mono"`;
       ctx.textAlign = 'center'; ctx.fillText(t.text, t.x, t.y); ctx.restore();
     });
 
@@ -1057,7 +1077,25 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
     }
 
     ctx.restore();
-  }, [isPortrait, synergyActiveFramesRef, currentBiomeIndexRef, nextBiomeIndexRef, biomeTransitionRef, framesRef, speedRef, animTimeRef, starsRef, creditsRef, obstaclesRef, lasersRef, playerRef, invincibleFramesRef, bossRef, floatingTextsRef, particlesRef]);
+  }, [
+    isPortrait,
+    synergyActiveFramesRef,
+    currentBiomeIndexRef,
+    nextBiomeIndexRef,
+    biomeTransitionRef,
+    framesRef,
+    speedRef,
+    animTimeRef,
+    starsRef,
+    creditsRef,
+    obstaclesRef,
+    lasersRef,
+    playerRef,
+    invincibleFramesRef,
+    bossRef,
+    floatingTextsRef,
+    particlesRef
+  ]);
 
   const loop = useCallback((time: number) => {
     if (!lastTimeRef.current) lastTimeRef.current = time;

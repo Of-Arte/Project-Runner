@@ -13,6 +13,7 @@ export enum ObstacleType {
   // Rare Department-Specific Obstacles
   GLASS_CEILING = 'GLASS_CEILING', // Descending barrier (Management)
   DATA_CORRUPTER = 'DATA_CORRUPTER', // Control inverter (Mainframe)
+  SERVER = 'SERVER', // Towering server rack
   POWERUP = 'POWERUP',           // Special survival aid
 }
 

@@ -32,8 +32,8 @@ export const LANDSCAPE_CONFIG: GameConfig = {
   maxSpeed: 80,         // Cap for scroll speed (base * timeScale) (Increased from 60)
   speedMilestone: 10000,
   timeScaleIncrement: 0.15, // Smooth time scaling
-  obstacleSpawnRate: 0.6,
-  creditSpawnChance: 0.7,
+  obstacleSpawnRate: 0.8, // Increased from 0.6
+  creditSpawnChance: 0.6, // Slightly reduced
   lifePackBaseChance: 0.05,
   lifePackSynergyChance: 0.20,
   gravity: 1.2,         // Lower gravity for floatier jumps
@@ -45,8 +45,8 @@ export const PORTRAIT_CONFIG: GameConfig = {
   maxSpeed: 50,         // Increased from 40
   speedMilestone: 10000,
   timeScaleIncrement: 0.1,
-  obstacleSpawnRate: 0.5,
-  creditSpawnChance: 0.7,
+  obstacleSpawnRate: 0.7, // Increased from 0.5
+  creditSpawnChance: 0.6,
   lifePackBaseChance: 0.05,
   lifePackSynergyChance: 0.20,
   gravity: 1.8,
@@ -174,7 +174,7 @@ export const POWERUP_CONFIG = {
     duration: 120,    // 2 seconds at 60fps
     label: 'REFLECTIVE BURST'
   },
-  SPAWN_CHANCE: 0.08,    // 8% chance on credit spawn check
+  SPAWN_CHANCE: 0.05,    // Reduced from 0.08
 } as const;
 
 export const MOCK_LEADERBOARD = [

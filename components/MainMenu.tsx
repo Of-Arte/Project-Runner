@@ -194,15 +194,15 @@ const MainMenu: React.FC<MainMenuProps> = ({ onStart, isAudioEnabled, toggleAudi
           >
             <span className="flex items-center gap-1.5 px-3 py-1.5 bg-red-950/30 border border-red-900/40 rounded-sm text-red-400/80 hover:text-red-300 hover:border-red-700/60 transition-all">
               <Plane size={12} className="rotate-90" />
-              DUCK DRONES
+              Endure
             </span>
             <span className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-950/30 border border-orange-900/40 rounded-sm text-orange-400/80 hover:text-orange-300 hover:border-orange-700/60 transition-all">
               <Bomb size={12} />
-              JUMP MINES
+              Produce
             </span>
             <span className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-950/30 border border-purple-900/40 rounded-sm text-purple-400/80 hover:text-purple-300 hover:border-purple-700/60 transition-all">
               <UserX size={12} />
-              EVADE MANAGEMENT
+              Consume
             </span>
           </div>
 

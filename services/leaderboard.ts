@@ -31,7 +31,7 @@ const LEADERBOARD_COLLECTION = 'leaderboard';
  * Check if a username is available
  */
 export const checkUsernameAvailability = async (username: string): Promise<boolean> => {
-  if (!db || db.type === 'mock') return true; // Offline mode always allows
+  if (!db || (db as any).type === 'mock') return true; // Offline mode always allows
   try {
     const docRef = doc(db, LEADERBOARD_COLLECTION, username.toLowerCase());
     const docSnap = await getDoc(docRef);
@@ -61,7 +61,7 @@ export const registerUser = async (username: string, uid: string): Promise<void>
     throw new Error('Username already taken');
   }
 
-  if (!db || db.type === 'mock') return;
+  if (!db || (db as any).type === 'mock') return;
 
   try {
     await setDoc(doc(db, LEADERBOARD_COLLECTION, normalizedUsername), {
@@ -90,7 +90,7 @@ export const submitScore = async (
   const user = auth.currentUser;
   if (!user) throw new Error('Must be logged in to submit score');
 
-  if (!db || db.type === 'mock') return;
+  if (!db || (db as any).type === 'mock') return;
 
   try {
     const normalizedUsername = username.toLowerCase();
@@ -129,7 +129,7 @@ export const submitScore = async (
  * Get top N entries from leaderboard
  */
 export const getLeaderboard = async (topN: number = 10): Promise<LeaderboardEntry[]> => {
-  if (!db || db.type === 'mock') return [];
+  if (!db || (db as any).type === 'mock') return [];
 
   try {
     const q = query(

@@ -38,13 +38,13 @@ const ControlsGuidance: React.FC<ControlsGuidanceProps> = ({ mode, isPortrait = 
                             </div>
                             <div className={`w-12 h-12 sm:w-16 sm:h-16 rounded-full border ${isPortrait ? 'border-red-400/30 bg-red-900/10' : 'border-yellow-400/30 bg-yellow-900/10'} flex items-center justify-center backdrop-blur-sm`}>
                                 {isMobile ?
-                                    (isPortrait ? <Zap size={24} className="text-red-400 animate-pulse" /> : <ArrowDown size={24} className="text-yellow-400 animate-bounce" />) :
+                                    <Fingerprint size={32} className={`text-${isPortrait ? 'red' : 'yellow'}-400 animate-pulse`} /> :
                                     <div className="text-[10px] font-tech font-bold text-neon-yellow border border-neon-yellow/50 px-2 py-0.5 rounded">SPACE</div>
                                 }
                             </div>
                         </div>
                         <span className={`text-[10px] sm:text-xs font-tech ${isPortrait ? 'text-neon-red' : 'text-neon-yellow'} tracking-[0.3em] uppercase opacity-70`}>
-                            {isMobile ? (isPortrait ? 'Double Tap' : 'Swipe') : 'Shoot'}
+                            {isMobile ? 'Double Tap' : 'Shoot'}
                         </span>
                     </div>
                 </div>
@@ -63,7 +63,7 @@ const ControlsGuidance: React.FC<ControlsGuidanceProps> = ({ mode, isPortrait = 
             <div className="flex items-center gap-3 px-3 py-1.5 bg-gray-900/40 border border-gray-800 rounded-sm group hover:border-yellow-500/30 transition-all">
                 {isMobile ? (isPortrait ? <Zap size={14} className="text-red-400/60" /> : <ArrowDown size={14} className="text-yellow-400/60" />) : <Keyboard size={14} className="text-yellow-400/60" />}
                 <span className="text-[10px] font-mono text-gray-500 tracking-wider">
-                    {isMobile ? (isPortrait ? 'DOUBLE TAP TO' : 'SWIPE TO') : 'SPACE TO'} <span className={`${isPortrait && isMobile ? 'text-neon-red/80' : 'text-neon-yellow/80'} font-bold`}>{isPortrait && isMobile ? 'SHOOT' : 'SHOOT'}</span>
+                    {isMobile ? 'DOUBLE TAP TO' : 'SPACE TO'} <span className={`${isPortrait && isMobile ? 'text-neon-red/80' : 'text-neon-yellow/80'} font-bold`}>{isPortrait && isMobile ? 'SHOOT' : 'SHOOT'}</span>
                 </span>
             </div>
         </div>

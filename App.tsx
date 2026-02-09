@@ -92,7 +92,7 @@ const App: React.FC = () => {
     };
   }, []);
 
-  const handleGameOver = async (finalScore: number, cause: string) => {
+  const handleGameOver = React.useCallback(async (finalScore: number, cause: string) => {
     setScore(finalScore);
     setDeathCause(cause);
     setGameState(GameState.GAME_OVER);
@@ -107,7 +107,7 @@ const App: React.FC = () => {
         console.error("Failed to submit score:", error);
       }
     }
-  };
+  }, [user]);
 
   const handlePause = () => {
     if (gameState === GameState.PLAYING) setGameState(GameState.PAUSED);

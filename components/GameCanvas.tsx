@@ -61,6 +61,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
   const dimensionsRef = useRef({ width: 800, height: 400, groundY: 320 });
   const [guideVisible, setGuideVisible] = useState(showTutorial);
   const [bossHint, setBossHint] = useState<string>('');
+  const [bossHintOpacity, setBossHintOpacity] = useState(0);
+  const [introPhase, setIntroPhase] = useState<'logo' | 'brief' | 'transition' | null>(null);
+  const [introOpacity, setIntroOpacity] = useState(0);
   const { isMobile } = useDeviceType();
   const guideTimerRef = useRef<number | null>(null);
   const prevGameState = useRef(gameState);
@@ -69,6 +72,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
   const speedRef = useRef(config.baseSpeed);
   const framesRef = useRef(0);
   const lastTimeRef = useRef<number>(0);
+  const lastScoreUpdateRef = useRef<number>(0);
   const animTimeRef = useRef<number>(0);
   const shakeRef = useRef(0);
   const stageRef = useRef(0);
@@ -455,7 +459,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
     const timeScale = 1 + (Math.floor(scoreRef.current / config.speedMilestone) * config.timeScaleIncrement);
     const actualTimeScale = Math.min(timeScale, config.maxSpeed / config.baseSpeed);
     speedRef.current = config.baseSpeed * actualTimeScale;
-    setScore(Math.floor(scoreRef.current));
+
+    // Throttle React state updates to ~30fps to save performance
+    if (Date.now() - lastScoreUpdateRef.current > 33) {
+      setScore(Math.floor(scoreRef.current));
+      lastScoreUpdateRef.current = Date.now();
+    }
+
     framesRef.current += relativeDelta;
     animTimeRef.current += relativeDelta / 60;
     shakeRef.current = Math.max(0, shakeRef.current - 0.5 * relativeDelta);
@@ -826,7 +836,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
     if (activeSubliminalRef.current) {
       const msg = activeSubliminalRef.current;
       ctx.save(); ctx.globalAlpha = msg.opacity; ctx.fillStyle = p.text;
-      ctx.font = `900 ${Math.floor(60 * msg.scale)}px 'Rajdhani'`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = `900 ${Math.floor(60 * msg.scale)}px 'Share Tech Mono'`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(msg.text, msg.x, msg.y); ctx.restore();
     }
 
@@ -895,7 +905,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
         ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.stroke();
 
         // Icon Symbol
-        ctx.fillStyle = color; ctx.font = `bold ${Math.floor(rad * 1.2)}px 'Rajdhani'`;
+        ctx.fillStyle = color; ctx.font = `bold ${Math.floor(rad * 1.2)}px 'Share Tech Mono'`;
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(pType === PowerupType.SHIELD ? 'S' : 'R', centerX, centerY);
       } else {
@@ -932,8 +942,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
       const cx = pl.laneX!;
       const cy = height - PORTRAIT_PLAYER_Y_OFFSET - (pl.altitude || 0);
 
-      if (isSynergy || pl.activeEffectType) {
-        const auraColor = isSynergy ? '#fff' : (pl.activeEffectType === PowerupType.REFLECT ? POWERUP_CONFIG.REFLECT.color : POWERUP_CONFIG.SHIELD.color);
+      const isLaserReady = laserCooldownRef.current === 0;
+      if (isSynergy || pl.activeEffectType || isLaserReady) {
+        let auraColor = '#fff';
+        if (isSynergy) auraColor = '#fff';
+        else if (pl.activeEffectType === PowerupType.REFLECT) auraColor = POWERUP_CONFIG.REFLECT.color;
+        else if (isLaserReady) auraColor = '#ff0080'; // Neon pink for laser ready
+
         ctx.save(); ctx.shadowBlur = 30; ctx.shadowColor = auraColor; ctx.fillStyle = auraColor + '44';
         ctx.beginPath(); ctx.arc(cx, cy, 30 + Math.sin(animTimeRef.current * 15) * 5, 0, Math.PI * 2); ctx.fill(); ctx.restore();
       }
@@ -965,6 +980,18 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
       }
     } else {
       const ph = pl.isDucking ? PLAYER_HEIGHT_DUCKING : PLAYER_HEIGHT_STANDING;
+
+      // Laser ready glow for landscape
+      const isLaserReady = laserCooldownRef.current === 0;
+      if (isLaserReady) {
+        ctx.save();
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = '#ff0080';
+        ctx.fillStyle = 'rgba(255, 0, 128, 0.2)';
+        ctx.fillRect(PLAYER_X - 5, pl.y - 5, PLAYER_WIDTH + 10, ph + 10);
+        ctx.restore();
+      }
+
       ctx.fillStyle = p.primary; ctx.shadowBlur = 15; ctx.shadowColor = p.primary;
       ctx.fillRect(PLAYER_X, pl.y, PLAYER_WIDTH, ph);
 
@@ -1007,12 +1034,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
     }
 
     // SYSTEM VERIFICATION
-    ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.font = "900 12px 'Rajdhani'"; ctx.textAlign = 'right';
+    ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.font = "bold 24px 'Share Tech Mono'"; ctx.textAlign = 'right';
     ctx.fillText("V-CORP OS v2.0.6-MASTER", width - 20, 20);
 
     // Floating Texts
     floatingTextsRef.current.forEach(t => {
-      ctx.save(); ctx.globalAlpha = t.life; ctx.fillStyle = t.color; ctx.font = `900 ${t.fontSize}px 'Rajdhani'`;
+      ctx.save(); ctx.globalAlpha = t.life; ctx.fillStyle = t.color; ctx.font = `${t.fontSize}px "Share Tech Mono"`;
       ctx.textAlign = 'center'; ctx.fillText(t.text, t.x, t.y); ctx.restore();
     });
 
@@ -1059,8 +1086,110 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
     resetGame();
   }, [resetGame]);
 
+  // Boss hint fade animation
+  useEffect(() => {
+    if (bossHint) {
+      // Fade in
+      setBossHintOpacity(0);
+      const fadeIn = setInterval(() => {
+        setBossHintOpacity(prev => {
+          if (prev >= 1) {
+            clearInterval(fadeIn);
+            return 1;
+          }
+          return prev + 0.05;
+        });
+      }, 16);
+      return () => clearInterval(fadeIn);
+    } else if (bossHintOpacity > 0) {
+      // Fade out
+      const fadeOut = setInterval(() => {
+        setBossHintOpacity(prev => {
+          if (prev <= 0) {
+            clearInterval(fadeOut);
+            return 0;
+          }
+          return prev - 0.1;
+        });
+      }, 16);
+      return () => clearInterval(fadeOut);
+    }
+  }, [bossHint]);
+
+  // Intro sequence controller
+  useEffect(() => {
+    if (gameState === GameState.PLAYING && prevGameState.current === GameState.MENU) {
+      // Start intro sequence
+      setIntroPhase('logo');
+      setIntroOpacity(0);
+
+      // Fade in logo
+      let opacity = 0;
+      const logoFadeIn = setInterval(() => {
+        opacity += 0.05;
+        setIntroOpacity(opacity);
+        if (opacity >= 1) clearInterval(logoFadeIn);
+      }, 16);
+
+      // Phase 1: Logo (1.5s)
+      setTimeout(() => {
+        clearInterval(logoFadeIn);
+        // Fade out logo
+        const logoFadeOut = setInterval(() => {
+          opacity -= 0.1;
+          setIntroOpacity(opacity);
+          if (opacity <= 0) {
+            clearInterval(logoFadeOut);
+            setIntroPhase('brief');
+            opacity = 0;
+            // Fade in brief
+            const briefFadeIn = setInterval(() => {
+              opacity += 0.05;
+              setIntroOpacity(opacity);
+              if (opacity >= 1) clearInterval(briefFadeIn);
+            }, 16);
+          }
+        }, 16);
+      }, 1500);
+
+      // Phase 2: Mission Brief (3s from start)
+      setTimeout(() => {
+        // Fade out brief
+        opacity = 1;
+        const briefFadeOut = setInterval(() => {
+          opacity -= 0.1;
+          setIntroOpacity(opacity);
+          if (opacity <= 0) {
+            clearInterval(briefFadeOut);
+            setIntroPhase('transition');
+            opacity = 0;
+            // Fade in transition
+            const transitionFadeIn = setInterval(() => {
+              opacity += 0.05;
+              setIntroOpacity(opacity);
+              if (opacity >= 1) clearInterval(transitionFadeIn);
+            }, 16);
+          }
+        }, 16);
+      }, 3000);
+
+      // Phase 3: Complete intro (4s total)
+      setTimeout(() => {
+        opacity = 1;
+        const finalFadeOut = setInterval(() => {
+          opacity -= 0.05;
+          setIntroOpacity(opacity);
+          if (opacity <= 0) {
+            clearInterval(finalFadeOut);
+            setIntroPhase(null);
+          }
+        }, 16);
+      }, 4000);
+    }
+  }, [gameState]);
+
   return (
-    <div ref={containerRef} className="w-full h-full relative bg-black overflow-hidden font-['Rajdhani']">
+    <div ref={containerRef} className="w-full h-full relative bg-black overflow-hidden font-tech">
       <canvas ref={canvasRef} className="block w-full h-full"
         onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
         onMouseDown={handleMouseDown} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} />
@@ -1068,14 +1197,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
       {gameState === GameState.PAUSED && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-md z-50">
           <div className="text-center animate-in zoom-in duration-300">
-            <h2 className="text-5xl font-black text-white italic tracking-tighter mb-8">SYSTEM PAUSED</h2>
+            <h2 className="text-5xl font-cyber font-black text-white italic tracking-tighter mb-8">SYSTEM PAUSED</h2>
             <button onClick={() => setGameState(GameState.PLAYING)} className="px-12 py-4 bg-cyan-500 text-black font-black uppercase skew-x-[-12deg] hover:bg-white transition-colors">RESUME MISSION</button>
           </div>
         </div>
       )}
 
-      {bossHint && gameState === GameState.PLAYING && (
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 z-40 pointer-events-none animate-in fade-in slide-in-from-top-4 duration-500">
+      {bossHint && gameState === GameState.PLAYING && bossHintOpacity > 0 && (
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 z-40 pointer-events-none transition-opacity duration-300" style={{ opacity: bossHintOpacity }}>
           <div className="relative">
             {/* Corner brackets */}
             <div className="absolute -top-2 -left-2 w-4 h-4 border-t-2 border-l-2 border-cyan-400"></div>
@@ -1104,8 +1233,41 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
           </div>
         </div>
       )}
+
+      {/* Intro Phases */}
+      {introPhase === 'logo' && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black z-50 pointer-events-none" style={{ opacity: introOpacity }}>
+          <h1 className="text-4xl sm:text-6xl md:text-8xl font-cyber font-black text-transparent bg-clip-text bg-gradient-to-r from-neon-yellow via-neon-blue to-neon-yellow animate-pulse tracking-tighter">
+            V-CORP
+          </h1>
+        </div>
+      )}
+
+      {introPhase === 'brief' && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black z-50 pointer-events-none" style={{ opacity: introOpacity }}>
+          <div className="max-w-2xl px-8 text-center space-y-4">
+            <h2 className="text-2xl sm:text-4xl font-cyber text-neon-red tracking-widest uppercase mb-2">MISSION BRIEFING</h2>
+            <p className="text-sm sm:text-lg font-tech text-neon-cyan leading-relaxed">
+              OPERATIVE: YOUR QUOTA IS CRITICAL.<br />
+              AVOID DRONES. COLLECT CREDITS.<br />
+              <span className="text-neon-yellow">COMPLY OR BE TERMINATED.</span>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {introPhase === 'transition' && (
+        <div className="absolute inset-0 bg-black z-50 pointer-events-none" style={{ opacity: 1 - introOpacity }} />
+      )}
+
+      {/* Controls Guidance Overlay (Tutorial) */}
+      {guideVisible && (
+        <div className="absolute inset-0 z-20 pointer-events-none">
+          <ControlsGuidance mode="overlay" />
+        </div>
+      )}
     </div>
   );
 };
 
-export default GameCanvas;
+export default React.memo(GameCanvas);

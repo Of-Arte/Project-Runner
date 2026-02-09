@@ -116,7 +116,7 @@ const MainMenu: React.FC<MainMenuProps> = ({ onStart, isAudioEnabled, toggleAudi
             style={{ animation: 'fadeInUp 0.8s ease-out forwards' }}
           >
             <h1
-              className="text-3xl sm:text-5xl md:text-7xl landscape:text-5xl font-black italic tracking-tighter text-transparent bg-clip-text relative"
+              className="text-3xl sm:text-5xl md:text-7xl landscape:text-5xl font-black italic tracking-tighter text-transparent bg-clip-text relative font-cyber"
               style={{
                 textShadow: `0 0 15px ${COLORS.NEON_YELLOW}`,
                 background: 'linear-gradient(90deg, #facc15, #fbbf24, #22d3ee, #fbbf24, #facc15)',
@@ -128,7 +128,7 @@ const MainMenu: React.FC<MainMenuProps> = ({ onStart, isAudioEnabled, toggleAudi
             >
               V-CORP
             </h1>
-            <p className="text-[10px] sm:text-sm md:text-lg landscape:text-sm tracking-[0.3em] text-cyan-400 font-light uppercase opacity-0 flex items-center justify-center gap-2"
+            <p className="text-[10px] sm:text-sm md:text-lg landscape:text-sm tracking-[0.3em] text-neon-cyan font-tech uppercase opacity-0 flex items-center justify-center gap-2"
               style={{ animation: 'fadeInUp 0.8s ease-out 0.2s forwards' }}>
               <Gamepad size={19} className="text-yellow-400 hidden sm:inline landscape:inline" />
               PROJECT RUNNER
@@ -150,10 +150,10 @@ const MainMenu: React.FC<MainMenuProps> = ({ onStart, isAudioEnabled, toggleAudi
                 <Award size={12} className="text-yellow-400" />
                 CORPORATE RANKINGS
               </span>
-              <span className="text-[8px] text-gray-500">LIVE</span>
+              <span className="text-[8px] text-gray-500 font-tech">LIVE</span>
             </h3>
 
-            <div className="space-y-2 font-mono min-h-[120px]">
+            <div className="space-y-2 font-tech min-h-[120px]">
               {isLoadingLeaderboard ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 size={20} className="text-cyan-400 animate-spin" />
@@ -220,7 +220,7 @@ const MainMenu: React.FC<MainMenuProps> = ({ onStart, isAudioEnabled, toggleAudi
               ) : (
                 <VolumeX size={12} className="text-gray-500 group-hover:text-cyan-400 transition-colors" />
               )}
-              <span className={`text-[8px] font-mono tracking-widest ${isAudioEnabled ? 'text-cyan-400' : 'text-gray-500 group-hover:text-cyan-400'}`}>
+              <span className={`text-[8px] font-tech tracking-widest ${isAudioEnabled ? 'text-neon-cyan' : 'text-gray-500 group-hover:text-neon-cyan'}`}>
                 MUSIC: {isAudioEnabled ? 'ON' : 'OFF'}
               </span>
             </button>
@@ -231,7 +231,7 @@ const MainMenu: React.FC<MainMenuProps> = ({ onStart, isAudioEnabled, toggleAudi
                 <div className="w-full flex items-center justify-between gap-2 px-4 py-2 bg-cyan-950/20 border border-cyan-500/30 rounded-sm">
                   <div className="flex items-center gap-2">
                     <UserPlus size={14} className="text-cyan-400" />
-                    <span className="text-cyan-400 font-mono text-xs tracking-wider">
+                    <span className="text-neon-cyan font-tech text-xs tracking-wider">
                       {user.username}
                     </span>
                   </div>

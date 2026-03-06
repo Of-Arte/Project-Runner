@@ -5,12 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![React](https://img.shields.io/badge/React-19.2.4-blue)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-6.2.0-646CFF)](https://vitejs.dev/)
-
-An open-source endless runner navigating the challenging world of corporate America, powered by React and Google's Gemini AI.
-
 </div>
-
----
 
 ## 🚀 Features
 * **Endless Runner Gameplay:** Dodge obstacles and climb the corporate ladder.

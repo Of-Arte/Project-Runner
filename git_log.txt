@@ -1,0 +1,17 @@
+3cfa769 
+ed577a8 
+e60b665 feat: Implement core game loop and UI components, adding support for powerups, rare obstacles, and boss encounters with updated game types.
+6aea16c feat: Implement core game canvas with player mechanics, obstacles, scoring, biomes, and device-responsive controls.
+b47347e feat: Implement core game logic, Firebase authentication, leaderboard, sound effects, and PWA support with new UI components and device orientation handling.
+c263b03 
+3cba99a 
+6c58693 feat: Implement dynamic control guidance component with device type detection and touch interaction improvements.
+403fbb3 ui fixes
+41247dd feat: Implement user authentication with login/logout functionality and integrate user profiles into the main menu and termination screen.
+fa4a488 feat: Implement PWA capabilities, refactor game input handling to use active input states, and improve canvas rendering with DPR scaling.
+55f605d feat: Implement anonymous Firebase authentication for leaderboard services, add mock leaderboard data for display, and update UI color definitions.
+3e899f6 feat: Implement web app manifest and add various favicons for improved branding and home screen experience.
+1b3fffd feat: Implement Firebase-backed leaderboard and user management with profanity filtering, and integrate Tailwind CSS for styling.
+3ce192c feat: Add background music with toggle, implement a visual "Aura" mode with dynamic HUD styling, and update corporate ticker messages.
+965335e feat: enhance main menu with holographic effects, floating particles, and various fade-in and pulsing animations.
+346aa0a first commit

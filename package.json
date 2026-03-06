@@ -1,8 +1,10 @@
 {
-  "name": "v-corp:-corporate-ladder-runner",
-  "private": true,
-  "version": "0.0.0",
+  "name": "corporate-ladder-runner",
+  "version": "1.0.0",
+  "description": "An endless runner game navigating the corporate ladder, powered by React and Gemini AI.",
   "type": "module",
+  "author": "",
+  "license": "MIT",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
